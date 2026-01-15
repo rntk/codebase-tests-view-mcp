@@ -17,7 +17,7 @@ export function useTests(path: string | null) {
     setError(null);
 
     getRelatedTests(path)
-      .then(res => setTests(res.tests))
+      .then(res => setTests(res.tests ?? []))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [path]);

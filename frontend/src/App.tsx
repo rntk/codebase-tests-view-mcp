@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { ThreePanel } from './components/Layout/ThreePanel';
 import { FileList } from './components/FileExplorer/FileList';
 import { FilePreview } from './components/FilePreview/FilePreview';

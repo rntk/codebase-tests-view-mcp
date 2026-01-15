@@ -29,13 +29,14 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   }
 
   // Build mind map data from file metadata
+  const testRefs = file.metadata?.tests ?? [];
   const mindMapData: MindMapNode = {
     id: file.path,
     label: file.name,
-    children: file.metadata?.tests?.map((test) => ({
+    children: testRefs.map((test) => ({
       id: `${test.testFile}:${test.testName}`,
       label: test.testName,
-    })) || [],
+    })),
   };
 
   const hasTests = mindMapData.children && mindMapData.children.length > 0;

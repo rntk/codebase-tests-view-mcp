@@ -12,7 +12,7 @@ export function useFiles(path: string) {
     setError(null);
 
     listFiles(path)
-      .then(res => setFiles(res.files))
+      .then(res => setFiles(res.files ?? []))
       .catch(err => setError(err.message))
       .finally(() => setLoading(false));
   }, [path]);
