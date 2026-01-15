@@ -1,0 +1,54 @@
+# Node modules
+frontend/node_modules/
+node_modules/
+
+# Frontend build output
+frontend/build/
+
+# Go binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+server
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Dependency directories
+vendor/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+
+# Documentation
+*.md
+README.md
+
+# Metadata files
+metadata.json
+*.json.bak
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log

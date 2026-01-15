@@ -1,0 +1,19 @@
+version: '3.8'
+
+services:
+  codebase-view-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      # Mount current directory for file browsing
+      - .:/workspace:ro
+      # Mount metadata storage (persistent)
+      - ./metadata:/data
+    environment:
+      - PORT=8080
+      - METADATA_PATH=/data/metadata.json
+    command: ["/app/server", "-port", "8080", "-dir", "/workspace", "-metadata", "/data/metadata.json"]
+    restart: unless-stopped

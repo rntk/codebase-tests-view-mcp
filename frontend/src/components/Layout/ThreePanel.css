@@ -1,0 +1,26 @@
+.three-panel {
+  display: grid;
+  grid-template-columns: 250px 1fr 350px;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
+.panel {
+  overflow: auto;
+  border-right: 1px solid #ddd;
+  padding: 16px;
+}
+
+.panel-left {
+  background: #f8f9fa;
+}
+
+.panel-center {
+  background: #fff;
+}
+
+.panel-right {
+  background: #f8f9fa;
+  border-right: none;
+}
