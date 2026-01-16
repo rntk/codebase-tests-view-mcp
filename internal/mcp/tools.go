@@ -7,7 +7,7 @@ func GetTools() []Tool {
 	return []Tool{
 		{
 			Name:        "submit-test-metadata",
-			Description: "Submit metadata about tests for a source file. This tool allows LLM agents to register information about which tests cover which parts of a source file, including the line numbers for test code, input data, and expected output.",
+			Description: "Submit metadata about tests for a source file. This tool allows LLM agents to register information about which tests cover which parts of a source file, including the line numbers for test code, input data, and expected output. Multiple submissions for the same file will be merged (tests with the same testFile+testName will be updated, new tests will be added).",
 			InputSchema: json.RawMessage(`{
 				"type": "object",
 				"properties": {

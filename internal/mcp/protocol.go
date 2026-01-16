@@ -261,8 +261,8 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 		return nil, fmt.Errorf("invalid tests format: %w", err)
 	}
 
-	// Store metadata
-	if err := h.metaStore.SetTestMetadata(sourceFile, tests); err != nil {
+	// Store metadata (merge with existing tests)
+	if err := h.metaStore.AddTestMetadata(sourceFile, tests); err != nil {
 		return nil, fmt.Errorf("failed to store metadata: %w", err)
 	}
 

@@ -30,10 +30,11 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
   const handleLineClick = (lineNum: number) => {
     const tests = lineToTests.get(lineNum);
     if (tests && tests.length > 0 && onLineClick) {
-      // For now, navigate to the first test covering this line
-      const test = tests[0];
-      const testId = `${test.testFile}:${test.testName}`;
-      onLineClick(testId);
+      // Highlight all tests covering this line
+      tests.forEach(test => {
+        const testId = `${test.testFile}:${test.testName}`;
+        onLineClick(testId);
+      });
     }
   };
 

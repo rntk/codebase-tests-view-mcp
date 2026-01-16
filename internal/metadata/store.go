@@ -30,12 +30,54 @@ func NewStore(persistPath string) *Store {
 	return store
 }
 
-// SetTestMetadata stores test metadata for a file
+// SetTestMetadata stores test metadata for a file (overwrites existing data)
 func (s *Store) SetTestMetadata(filePath string, tests []TestReference) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	s.metadata[filePath] = &FileMetadata{Tests: tests}
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
+}
+
+// AddTestMetadata adds test metadata to a file, merging with existing tests
+func (s *Store) AddTestMetadata(filePath string, tests []TestReference) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing := s.metadata[filePath]
+	if existing == nil {
+		// No existing metadata, create new
+		s.metadata[filePath] = &FileMetadata{Tests: tests}
+	} else {
+		// Merge with existing tests
+		// Use a map to deduplicate based on testFile+testName
+		testMap := make(map[string]TestReference)
+
+		// Add existing tests first
+		for _, test := range existing.Tests {
+			key := test.TestFile + ":" + test.TestName
+			testMap[key] = test
+		}
+
+		// Add/update with new tests
+		for _, test := range tests {
+			key := test.TestFile + ":" + test.TestName
+			testMap[key] = test
+		}
+
+		// Convert map back to slice
+		mergedTests := make([]TestReference, 0, len(testMap))
+		for _, test := range testMap {
+			mergedTests = append(mergedTests, test)
+		}
+
+		s.metadata[filePath].Tests = mergedTests
+	}
 
 	if s.filePath != "" {
 		return s.saveUnsafe()

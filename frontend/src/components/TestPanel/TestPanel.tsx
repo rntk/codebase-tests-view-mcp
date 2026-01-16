@@ -6,10 +6,10 @@ interface TestPanelProps {
   tests: TestDetail[];
   loading: boolean;
   error: string | null;
-  highlightedTestId?: string | null;
+  highlightedTestIds?: Set<string>;
 }
 
-export const TestPanel: React.FC<TestPanelProps> = ({ tests, loading, error, highlightedTestId }) => {
+export const TestPanel: React.FC<TestPanelProps> = ({ tests, loading, error, highlightedTestIds }) => {
   return (
     <div>
       <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '18px' }}>
@@ -29,7 +29,7 @@ export const TestPanel: React.FC<TestPanelProps> = ({ tests, loading, error, hig
         <div>
           {tests.map((test, index) => {
             const testId = `${test.testFile}:${test.testName}`;
-            const isHighlighted = testId === highlightedTestId;
+            const isHighlighted = highlightedTestIds?.has(testId) ?? false;
             return (
               <TestItem
                 key={`${test.testFile}-${test.testName}-${index}`}

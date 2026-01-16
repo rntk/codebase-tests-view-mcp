@@ -11,7 +11,7 @@ import type { FileEntry } from './types';
 function App() {
   const [currentPath, setCurrentPath] = useState('.');
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
-  const [highlightedTestId, setHighlightedTestId] = useState<string | null>(null);
+  const [highlightedTestIds, setHighlightedTestIds] = useState<Set<string>>(new Set());
 
   // Load files for current directory
   const { files, loading: filesLoading, error: filesError } = useFiles(currentPath);
@@ -32,20 +32,28 @@ function App() {
       // Select file
       setSelectedFilePath(fileEntry.path);
     }
-    // Clear highlighted test when changing files
-    setHighlightedTestId(null);
+    // Clear highlighted tests when changing files
+    setHighlightedTestIds(new Set());
   };
 
   // Handle path change
   const handlePathChange = (newPath: string) => {
     setCurrentPath(newPath);
     setSelectedFilePath(null);
-    setHighlightedTestId(null);
+    setHighlightedTestIds(new Set());
   };
 
   // Handle test node click in mind map or code line click
   const handleTestClick = (testId: string) => {
-    setHighlightedTestId(testId);
+    setHighlightedTestIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(testId)) {
+        newSet.delete(testId);
+      } else {
+        newSet.add(testId);
+      }
+      return newSet;
+    });
   };
 
   return (
@@ -74,7 +82,7 @@ function App() {
           tests={tests}
           loading={testsLoading}
           error={testsError}
-          highlightedTestId={highlightedTestId}
+          highlightedTestIds={highlightedTestIds}
         />
       }
     />
