@@ -1,0 +1,1 @@
+Frontend build placeholder. Run `cd frontend && npm install && npm run build` to generate the real assets.
