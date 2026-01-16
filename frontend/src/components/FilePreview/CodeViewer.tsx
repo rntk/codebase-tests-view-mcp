@@ -14,7 +14,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
   testReferences = [],
   onLineClick
 }) => {
-  const lines = content.split('\n');
+  const lines = content.split(/\r?\n/);
 
   // Build a map of line numbers to test references
   const lineToTests = new Map<number, TestReference[]>();
@@ -51,6 +51,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
           fontSize: '13px',
           lineHeight: '1.5',
           fontFamily: 'monospace',
+          whiteSpace: 'pre',
         }}
       >
         {lines.map((line, index) => {
@@ -82,7 +83,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
               }}
               title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to view.` : undefined}
             >
-              {line || '\n'}
+              {line === '' ? '\u00a0' : line}
             </div>
           );
         })}
