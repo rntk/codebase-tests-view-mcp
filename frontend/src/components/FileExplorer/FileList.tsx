@@ -1,6 +1,7 @@
 import React from 'react';
 import { FileItem } from './FileItem';
 import { PathInput } from './PathInput';
+import { Breadcrumbs } from './Breadcrumbs';
 import type { FileEntry } from '../../types';
 
 interface FileListProps {
@@ -23,18 +24,48 @@ export const FileList: React.FC<FileListProps> = ({
   onFileClick,
 }) => {
   return (
-    <div>
-      <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '18px' }}>
-        Files
+    <div className="file-list-container">
+      <h2 style={{
+        marginTop: 0,
+        marginBottom: 'var(--space-md)',
+        fontSize: '16px',
+        fontWeight: '600',
+        color: 'var(--text-primary)'
+      }}>
+        Explorer
       </h2>
-      <PathInput path={path} onChange={onPathChange} />
 
-      {loading && <div>Loading...</div>}
-      {error && <div style={{ color: 'red' }}>Error: {error}</div>}
+      <Breadcrumbs currentPath={path} onPathChange={onPathChange} />
+
+      <div style={{ marginBottom: 'var(--space-md)' }}>
+        <PathInput path={path} onChange={onPathChange} />
+      </div>
+
+      {loading && (
+        <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+          Loading files...
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          padding: 'var(--space-md)',
+          color: 'var(--error)',
+          backgroundColor: '#fef2f2',
+          borderRadius: 'var(--radius-md)',
+          fontSize: '13px'
+        }}>
+          Error: {error}
+        </div>
+      )}
 
       {!loading && !error && (
-        <div>
-          {files.length === 0 && <div>No files found</div>}
+        <div className="file-items">
+          {files.length === 0 && (
+            <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)', textAlign: 'center' }}>
+              No files found in this directory
+            </div>
+          )}
           {files.map((file) => (
             <FileItem
               key={file.path}

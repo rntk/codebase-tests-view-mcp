@@ -12,18 +12,20 @@ export const FileItem: React.FC<FileItemProps> = ({ file, onClick, isSelected })
     <div
       onClick={onClick}
       style={{
-        padding: '8px',
+        padding: 'var(--space-sm) var(--space-md)',
         cursor: 'pointer',
-        backgroundColor: isSelected ? '#e3f2fd' : 'transparent',
-        borderRadius: '4px',
-        marginBottom: '4px',
+        backgroundColor: isSelected ? 'var(--accent-soft)' : 'transparent',
+        color: isSelected ? 'var(--accent-secondary)' : 'var(--text-primary)',
+        borderRadius: 'var(--radius-md)',
+        marginBottom: '2px',
         display: 'flex',
         alignItems: 'center',
-        transition: 'background-color 0.2s',
+        transition: 'all 0.2s',
+        fontWeight: isSelected ? '600' : '400',
       }}
       onMouseEnter={(e) => {
         if (!isSelected) {
-          e.currentTarget.style.backgroundColor = '#f5f5f5';
+          e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
         }
       }}
       onMouseLeave={(e) => {
@@ -32,10 +34,20 @@ export const FileItem: React.FC<FileItemProps> = ({ file, onClick, isSelected })
         }
       }}
     >
-      <span style={{ marginRight: '8px' }}>
+      <span style={{
+        marginRight: 'var(--space-sm)',
+        fontSize: '16px',
+        opacity: isSelected ? 1 : 0.7
+      }}>
         {file.isDir ? '📁' : '📄'}
       </span>
-      <span style={{ fontFamily: 'monospace', fontSize: '14px' }}>
+      <span style={{
+        fontFamily: 'var(--font-mono)',
+        fontSize: '13px',
+        whiteSpace: 'nowrap',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis'
+      }}>
         {file.name}
       </span>
     </div>

@@ -11,22 +11,50 @@ interface TestPanelProps {
 
 export const TestPanel: React.FC<TestPanelProps> = ({ tests, loading, error, highlightedTestIds }) => {
   return (
-    <div>
-      <h2 style={{ marginTop: 0, marginBottom: '16px', fontSize: '18px' }}>
+    <div className="test-panel-container">
+      <h2 style={{
+        marginTop: 0,
+        marginBottom: 'var(--space-md)',
+        fontSize: '16px',
+        fontWeight: '600',
+        color: 'var(--text-primary)'
+      }}>
         Related Tests
       </h2>
 
-      {loading && <div>Loading tests...</div>}
-      {error && <div style={{ color: 'red' }}>Error: {error}</div>}
+      {loading && (
+        <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+          Loading tests...
+        </div>
+      )}
+
+      {error && (
+        <div style={{
+          padding: 'var(--space-md)',
+          color: 'var(--error)',
+          backgroundColor: '#fef2f2',
+          borderRadius: 'var(--radius-md)',
+          fontSize: '13px'
+        }}>
+          Error: {error}
+        </div>
+      )}
 
       {!loading && !error && tests.length === 0 && (
-        <div style={{ color: '#666' }}>
+        <div style={{
+          padding: 'var(--space-lg) var(--space-md)',
+          color: 'var(--text-tertiary)',
+          textAlign: 'center',
+          backgroundColor: 'var(--bg-primary)',
+          borderRadius: 'var(--radius-md)',
+          border: '1px dashed var(--border-color)'
+        }}>
           No tests found for this file
         </div>
       )}
 
       {!loading && !error && tests.length > 0 && (
-        <div>
+        <div className="test-items">
           {tests.map((test, index) => {
             const testId = `${test.testFile}:${test.testName}`;
             const isHighlighted = highlightedTestIds?.has(testId) ?? false;

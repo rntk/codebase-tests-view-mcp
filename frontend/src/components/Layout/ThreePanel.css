@@ -3,43 +3,58 @@
   height: 100vh;
   width: 100%;
   overflow: hidden;
+  background-color: var(--bg-primary);
 }
 
 .panel {
   overflow: auto;
-  padding: 16px;
+  padding: var(--space-md);
+  height: 100%;
 }
 
 .panel-left {
-  background: #f8f9fa;
+  background-color: var(--bg-secondary);
+  border-right: 1px solid var(--border-color);
 }
 
 .panel-center {
-  background: #fff;
+  background-color: var(--bg-primary);
 }
 
 .panel-right {
-  background: #f8f9fa;
-  border-right: none;
+  background-color: var(--bg-secondary);
+  border-left: 1px solid var(--border-color);
 }
 
 .resizer {
   cursor: col-resize;
-  background: linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0.04),
-    rgba(0, 0, 0, 0.12),
-    rgba(0, 0, 0, 0.04)
-  );
+  position: relative;
+  z-index: 10;
+  background-color: transparent;
+  width: 6px;
+  transition: background-color 0.2s;
   user-select: none;
   touch-action: none;
 }
 
-.resizer:hover {
-  background: linear-gradient(
-    90deg,
-    rgba(0, 0, 0, 0.08),
-    rgba(0, 0, 0, 0.18),
-    rgba(0, 0, 0, 0.08)
-  );
+.resizer::after {
+  content: '';
+  position: absolute;
+  left: 3px;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background-color: var(--border-color);
+}
+
+.resizer:hover,
+.resizer:active {
+  background-color: var(--accent-soft);
+}
+
+.resizer:hover::after,
+.resizer:active::after {
+  background-color: var(--accent-primary);
+  width: 2px;
+  left: 2px;
 }

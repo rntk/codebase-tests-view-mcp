@@ -70,7 +70,8 @@ export const ThreePanel: React.FC<ThreePanelProps> = ({ left, center, right }) =
       className="three-panel"
       ref={containerRef}
       style={{
-        gridTemplateColumns: `${leftWidth}px 6px 1fr 6px ${rightWidth}px`,
+        gridTemplateColumns: `${leftWidth}px 4px 1fr 4px ${rightWidth}px`,
+        backgroundColor: 'var(--bg-primary)'
       }}
     >
       <div className="panel panel-left">{left}</div>

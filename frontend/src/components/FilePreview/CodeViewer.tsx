@@ -1,4 +1,5 @@
 import React from 'react';
+import './CodeViewer.css';
 import type { TestReference } from '../../types';
 
 interface CodeViewerProps {
@@ -39,55 +40,36 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
   };
 
   return (
-    <div>
-      <h3 style={{ marginTop: 0, marginBottom: '12px', fontSize: '16px', fontFamily: 'monospace' }}>
+    <div className="code-viewer-container">
+      <div className="code-viewer-header">
         {filename}
-      </h3>
-      <div
-        style={{
-          backgroundColor: '#f5f5f5',
-          padding: '16px',
-          borderRadius: '4px',
-          overflow: 'auto',
-          fontSize: '13px',
-          lineHeight: '1.5',
-          fontFamily: 'monospace',
-          whiteSpace: 'pre',
-        }}
-      >
-        {lines.map((line, index) => {
-          const lineNum = index + 1;
-          const tests = lineToTests.get(lineNum);
-          const isHighlighted = tests && tests.length > 0;
+      </div>
+      <div className="code-viewer-content">
+        <div className="line-numbers">
+          {lines.map((_, index) => (
+            <span key={index + 1} className="line-number">
+              {index + 1}
+            </span>
+          ))}
+        </div>
+        <div className="code-lines">
+          {lines.map((line, index) => {
+            const lineNum = index + 1;
+            const tests = lineToTests.get(lineNum);
+            const isHighlighted = tests && tests.length > 0;
 
-          return (
-            <div
-              key={lineNum}
-              onClick={() => isHighlighted && handleLineClick(lineNum)}
-              style={{
-                backgroundColor: isHighlighted ? '#fef3c7' : 'transparent',
-                borderLeft: isHighlighted ? '3px solid #f59e0b' : 'none',
-                paddingLeft: isHighlighted ? '8px' : '0',
-                marginLeft: isHighlighted ? '-11px' : '0',
-                cursor: isHighlighted ? 'pointer' : 'default',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                if (isHighlighted) {
-                  e.currentTarget.style.backgroundColor = '#fde68a';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (isHighlighted) {
-                  e.currentTarget.style.backgroundColor = '#fef3c7';
-                }
-              }}
-              title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to view.` : undefined}
-            >
-              {line === '' ? '\u00a0' : line}
-            </div>
-          );
-        })}
+            return (
+              <div
+                key={lineNum}
+                onClick={() => isHighlighted && handleLineClick(lineNum)}
+                className={`code-line ${isHighlighted ? 'highlighted' : ''}`}
+                title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to view.` : undefined}
+              >
+                {line === '' ? '\u00a0' : line}
+              </div>
+            );
+          })}
+        </div>
       </div>
     </div>
   );

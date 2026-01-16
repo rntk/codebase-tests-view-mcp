@@ -19,32 +19,49 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
     <div
       ref={itemRef}
       style={{
-        marginBottom: '24px',
-        padding: '12px',
-        border: isHighlighted ? '2px solid #f59e0b' : '1px solid #ddd',
-        borderRadius: '4px',
-        backgroundColor: isHighlighted ? '#fef3c7' : 'white',
-        transition: 'all 0.3s',
+        marginBottom: 'var(--space-md)',
+        padding: 'var(--space-md)',
+        border: isHighlighted ? '2px solid var(--warning)' : '1px solid var(--border-color)',
+        borderRadius: 'var(--radius-md)',
+        backgroundColor: isHighlighted ? '#fffbeb' : 'var(--bg-primary)',
+        transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+        boxShadow: isHighlighted ? 'var(--shadow-md)' : 'var(--shadow-sm)',
+        transform: isHighlighted ? 'scale(1.02)' : 'scale(1)',
       }}
     >
-      <h4 style={{ margin: '0 0 8px 0', fontSize: '14px', fontWeight: 'bold' }}>
+      <h4 style={{
+        margin: '0 0 var(--space-sm) 0',
+        fontSize: '14px',
+        fontWeight: '600',
+        color: 'var(--text-primary)'
+      }}>
         {test.testName}
       </h4>
-      <div style={{ fontSize: '12px', color: '#666', marginBottom: '8px' }}>
-        <div>File: {test.testFile}</div>
-        <div>Lines: {test.lineRange.start}-{test.lineRange.end}</div>
-        <div>Covers: {test.coveredLines.start}-{test.coveredLines.end}</div>
+      <div style={{
+        fontSize: '12px',
+        color: 'var(--text-tertiary)',
+        marginBottom: 'var(--space-md)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px'
+      }}>
+        <div style={{ wordBreak: 'break-all' }}><strong>File:</strong> {test.testFile}</div>
+        <div><strong>Test Lines:</strong> {test.lineRange.start}-{test.lineRange.end}</div>
+        <div><strong>Target Lines:</strong> {test.coveredLines.start}-{test.coveredLines.end}</div>
       </div>
 
       {test.inputData && (
-        <div style={{ marginBottom: '8px' }}>
-          <strong style={{ fontSize: '12px' }}>Input Data:</strong>
+        <div style={{ marginBottom: 'var(--space-md)' }}>
+          <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Input Data</strong>
           <pre style={{
-            backgroundColor: '#f5f5f5',
-            padding: '8px',
-            borderRadius: '4px',
+            backgroundColor: 'var(--bg-secondary)',
+            padding: 'var(--space-sm)',
+            borderRadius: 'var(--radius-sm)',
             fontSize: '11px',
-            marginTop: '4px',
+            marginTop: 'var(--space-xs)',
+            border: '1px solid var(--border-color)',
+            overflow: 'auto',
+            fontFamily: 'var(--font-mono)'
           }}>
             {test.inputData}
           </pre>
@@ -53,13 +70,16 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
 
       {test.expectedOutput && (
         <div>
-          <strong style={{ fontSize: '12px' }}>Expected Output:</strong>
+          <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expected Result</strong>
           <pre style={{
-            backgroundColor: '#f5f5f5',
-            padding: '8px',
-            borderRadius: '4px',
+            backgroundColor: 'var(--bg-secondary)',
+            padding: 'var(--space-sm)',
+            borderRadius: 'var(--radius-sm)',
             fontSize: '11px',
-            marginTop: '4px',
+            marginTop: 'var(--space-xs)',
+            border: '1px solid var(--border-color)',
+            overflow: 'auto',
+            fontFamily: 'var(--font-mono)'
           }}>
             {test.expectedOutput}
           </pre>
