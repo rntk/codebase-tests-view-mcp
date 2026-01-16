@@ -43,7 +43,12 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
   return (
     <div>
-      <CodeViewer content={file.content} filename={file.name} />
+      <CodeViewer
+        content={file.content}
+        filename={file.name}
+        testReferences={testRefs}
+        onLineClick={onTestClick}
+      />
 
       {hasTests && (
         <div style={{ marginTop: '24px' }}>

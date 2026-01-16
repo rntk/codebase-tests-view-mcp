@@ -38,6 +38,15 @@ func GetTools() []Tool {
 									},
 									"required": ["start", "end"]
 								},
+								"coveredLines": {
+									"type": "object",
+									"description": "Line range in the source file that this test covers",
+									"properties": {
+										"start": {"type": "integer", "description": "Starting line number (1-indexed)"},
+										"end": {"type": "integer", "description": "Ending line number (1-indexed, inclusive)"}
+									},
+									"required": ["start", "end"]
+								},
 								"inputLines": {
 									"type": "object",
 									"description": "Line range containing the input/test data",
@@ -55,7 +64,7 @@ func GetTools() []Tool {
 									}
 								}
 							},
-							"required": ["testFile", "testName", "lineRange"]
+							"required": ["testFile", "testName", "lineRange", "coveredLines"]
 						}
 					}
 				},

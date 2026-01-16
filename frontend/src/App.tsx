@@ -11,6 +11,7 @@ import type { FileEntry } from './types';
 function App() {
   const [currentPath, setCurrentPath] = useState('.');
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [highlightedTestId, setHighlightedTestId] = useState<string | null>(null);
 
   // Load files for current directory
   const { files, loading: filesLoading, error: filesError } = useFiles(currentPath);
@@ -31,18 +32,20 @@ function App() {
       // Select file
       setSelectedFilePath(fileEntry.path);
     }
+    // Clear highlighted test when changing files
+    setHighlightedTestId(null);
   };
 
   // Handle path change
   const handlePathChange = (newPath: string) => {
     setCurrentPath(newPath);
     setSelectedFilePath(null);
+    setHighlightedTestId(null);
   };
 
-  // Handle test node click in mind map
+  // Handle test node click in mind map or code line click
   const handleTestClick = (testId: string) => {
-    console.log('Test clicked:', testId);
-    // Could implement scrolling to test in the test panel
+    setHighlightedTestId(testId);
   };
 
   return (
@@ -71,6 +74,7 @@ function App() {
           tests={tests}
           loading={testsLoading}
           error={testsError}
+          highlightedTestId={highlightedTestId}
         />
       }
     />

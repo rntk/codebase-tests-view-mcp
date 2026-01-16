@@ -42,13 +42,13 @@ func GetPromptContent(name string, args map[string]string) ([]PromptMessage, err
 1. Examine the function's implementation.
 2. If the function has associated tests, use the **submit-test-metadata** tool to submit metadata.
 3. For each test, identify:
-   * Which part of the function the test exercises.
-   * The specific input data used (line numbers).
-   * The expected result (line numbers).
+   * Which part of the source function the test exercises (line range in the source file).
+   * The specific input data used in the test (line numbers in test file).
+   * The expected result in the test (line numbers in test file).
 
 When reporting the analysis, include **only** the following information for each test:
 
-| File name | Test name | Line numbers (test range) | Line numbers (input data) | Line numbers (expected result) |
+| File name | Test name | Covered lines (source) | Line numbers (test range) | Line numbers (input data) | Line numbers (expected result) |
 
 After identifying all tests, use the **submit-test-metadata** tool with the following structure:
 
@@ -59,11 +59,17 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
       "testFile": "path/to/test_file.go",
       "testName": "TestFunctionName",
       "lineRange": {"start": 10, "end": 25},
+      "coveredLines": {"start": 45, "end": 60},
       "inputLines": {"start": 12, "end": 15},
       "outputLines": {"start": 20, "end": 22}
     }
   ]
-}`, functionName, filePath, filePath)
+}
+
+**IMPORTANT**:
+- "lineRange" refers to the lines in the TEST file where the test code is located
+- "coveredLines" refers to the lines in the SOURCE file (%s) that this test covers
+- "inputLines" and "outputLines" refer to lines in the TEST file`, functionName, filePath, filePath, filePath)
 
 		return []PromptMessage{
 			{

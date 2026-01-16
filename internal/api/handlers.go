@@ -99,11 +99,12 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 	var testDetails []files.TestDetail
 	for _, testRef := range fileMeta.Tests {
 		detail := files.TestDetail{
-			TestFile:    testRef.TestFile,
-			TestName:    testRef.TestName,
-			LineRange:   testRef.LineRange,
-			InputLines:  testRef.InputLines,
-			OutputLines: testRef.OutputLines,
+			TestFile:     testRef.TestFile,
+			TestName:     testRef.TestName,
+			LineRange:    testRef.LineRange,
+			CoveredLines: testRef.CoveredLines,
+			InputLines:   testRef.InputLines,
+			OutputLines:  testRef.OutputLines,
 		}
 
 		// Read test file content

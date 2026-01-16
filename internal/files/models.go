@@ -29,11 +29,12 @@ type FileMetadata struct {
 
 // TestReference links a source file to its tests
 type TestReference struct {
-	TestFile    string    `json:"testFile"`
-	TestName    string    `json:"testName"`
-	LineRange   LineRange `json:"lineRange"`
-	InputLines  LineRange `json:"inputLines,omitempty"`
-	OutputLines LineRange `json:"outputLines,omitempty"`
+	TestFile     string    `json:"testFile"`
+	TestName     string    `json:"testName"`
+	LineRange    LineRange `json:"lineRange"`
+	CoveredLines LineRange `json:"coveredLines"`
+	InputLines   LineRange `json:"inputLines,omitempty"`
+	OutputLines  LineRange `json:"outputLines,omitempty"`
 }
 
 // LineRange specifies a range of lines
@@ -59,6 +60,7 @@ type TestDetail struct {
 	TestName       string    `json:"testName"`
 	Content        string    `json:"content"`
 	LineRange      LineRange `json:"lineRange"`
+	CoveredLines   LineRange `json:"coveredLines"`
 	InputData      string    `json:"inputData,omitempty"`
 	InputLines     LineRange `json:"inputLines,omitempty"`
 	ExpectedOutput string    `json:"expectedOutput,omitempty"`

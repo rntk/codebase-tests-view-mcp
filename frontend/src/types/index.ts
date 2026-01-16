@@ -15,6 +15,7 @@ export interface TestReference {
   testFile: string;
   testName: string;
   lineRange: LineRange;
+  coveredLines: LineRange;
   inputLines?: LineRange;
   outputLines?: LineRange;
 }
@@ -38,6 +39,7 @@ export interface TestDetail {
   testName: string;
   content: string;
   lineRange: LineRange;
+  coveredLines: LineRange;
   inputData?: string;
   inputLines?: LineRange;
   expectedOutput?: string;
