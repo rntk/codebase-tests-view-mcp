@@ -181,3 +181,61 @@ func TestHandlerGetFile(t *testing.T) {
 		}
 	})
 }
+
+func TestHandlerGetFileOrTests(t *testing.T) {
+	t.Run("routes tests requests to GetTests", func(t *testing.T) {
+		h := &Handler{
+			metaStore: metadata.NewStore(""),
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/files/hello.txt/tests", nil)
+		req.SetPathValue("path", "hello.txt/tests")
+		rr := httptest.NewRecorder()
+
+		h.GetFileOrTests(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+
+		var response files.TestsResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if response.SourceFile != "hello.txt" {
+			t.Fatalf("sourceFile = %q, want %q", response.SourceFile, "hello.txt")
+		}
+	})
+
+	t.Run("routes file requests to GetFile", func(t *testing.T) {
+		baseDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(baseDir, "hello.txt"), []byte("hello"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		h := &Handler{
+			fileService: files.NewService(baseDir),
+			metaStore:   metadata.NewStore(""),
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/files/hello.txt", nil)
+		req.SetPathValue("path", "hello.txt")
+		rr := httptest.NewRecorder()
+
+		h.GetFileOrTests(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+
+		var response files.FileResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if response.File.Path != "hello.txt" {
+			t.Fatalf("path = %q, want %q", response.File.Path, "hello.txt")
+		}
+	})
+}
