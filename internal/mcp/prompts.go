@@ -48,7 +48,12 @@ func GetPromptContent(name string, args map[string]string) ([]PromptMessage, err
 
 When reporting the analysis, include **only** the following information for each test:
 
-| File name | Test name | Covered lines (source) | Line numbers (test range) | Line numbers (input data) | Line numbers (expected result) |
+- File name 
+- Test name
+- Covered lines (source)
+- Line numbers (test range)
+- Line numbers (input data)
+- Line numbers (expected result)
 
 After identifying all tests, use the **submit-test-metadata** tool with the following structure:
 
