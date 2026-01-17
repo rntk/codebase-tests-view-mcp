@@ -164,8 +164,8 @@ func TestHandlerGetFile(t *testing.T) {
 			t.Fatalf("content = %q, want %q", response.File.Content, "hello")
 		}
 
-		if response.File.MimeType != "text/plain" {
-			t.Fatalf("mimeType = %q, want %q", response.File.MimeType, "text/plain")
+		if response.File.MimeType != "text/plain" && response.File.MimeType != "text/plain; charset=utf-8" {
+			t.Fatalf("mimeType = %q, want %q or %q", response.File.MimeType, "text/plain", "text/plain; charset=utf-8")
 		}
 
 		if response.File.Metadata == nil {

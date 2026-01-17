@@ -309,7 +309,9 @@ func (h *Handler) sendSuccess(w http.ResponseWriter, id interface{}, result inte
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Error encoding JSON response: %v", err)
+	}
 }
 
 // sendError sends an error JSON-RPC response
@@ -324,5 +326,7 @@ func (h *Handler) sendError(w http.ResponseWriter, id interface{}, code int, mes
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		log.Printf("Error encoding JSON error response: %v", err)
+	}
 }
