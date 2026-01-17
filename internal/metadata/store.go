@@ -11,7 +11,7 @@ import (
 type Store struct {
 	mu       sync.RWMutex
 	metadata map[string]*FileMetadata // key: file path
-	filePath string                    // path to JSON persistence file
+	filePath string                   // path to JSON persistence file
 }
 
 // NewStore creates a new metadata store
