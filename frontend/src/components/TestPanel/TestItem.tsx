@@ -14,18 +14,36 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
   const [showOutputContext, setShowOutputContext] = useState(false);
   const contentLines = useMemo(() => test.content.split(/\r?\n/), [test.content]);
 
-  const renderContextLines = (startLine: number, endLine: number) => {
+  const renderContextBlock = (startLine: number, endLine: number) => {
     const safeStart = Math.max(1, startLine - CONTEXT_LINE_COUNT);
     const safeEnd = Math.min(contentLines.length, endLine + CONTEXT_LINE_COUNT);
     const lineNumberWidth = String(safeEnd).length;
-    const formatted = [];
+    const lines = [];
 
     for (let lineNumber = safeStart; lineNumber <= safeEnd; lineNumber += 1) {
       const line = contentLines[lineNumber - 1] ?? '';
-      formatted.push(`${String(lineNumber).padStart(lineNumberWidth, ' ')} | ${line}`);
+      const isTarget = lineNumber >= startLine && lineNumber <= endLine;
+      lines.push(
+        <div key={lineNumber} style={{
+          display: 'flex',
+          backgroundColor: isTarget ? 'rgba(255, 230, 0, 0.15)' : 'transparent',
+        }}>
+          <span style={{
+            color: 'var(--text-tertiary)',
+            width: `${lineNumberWidth}ch`,
+            marginRight: '12px',
+            textAlign: 'right',
+            flexShrink: 0,
+            userSelect: 'none'
+          }}>
+            {lineNumber}
+          </span>
+          <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>{line}</span>
+        </div>
+      );
     }
 
-    return formatted.join('\n');
+    return lines;
   };
 
   useEffect(() => {
@@ -33,6 +51,29 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
       itemRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
   }, [isHighlighted]);
+
+  const preStyle: React.CSSProperties = {
+    backgroundColor: 'var(--bg-secondary)',
+    padding: 'var(--space-sm)',
+    borderRadius: 'var(--radius-sm)',
+    fontSize: '11px',
+    marginTop: 'var(--space-xs)',
+    border: '1px solid var(--border-color)',
+    overflow: 'auto',
+    fontFamily: 'var(--font-mono)',
+    whiteSpace: 'pre-wrap'
+  };
+
+  const buttonStyle: React.CSSProperties = {
+    border: 'none',
+    background: 'none',
+    color: 'var(--text-secondary)',
+    fontSize: '11px',
+    cursor: 'pointer',
+    padding: 0,
+    textDecoration: 'underline',
+    marginLeft: 'auto'
+  };
 
   return (
     <div
@@ -91,103 +132,47 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
 
       {test.inputData && (
         <div style={{ marginBottom: 'var(--space-md)' }}>
-          <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Input Data</strong>
-          <pre style={{
-            backgroundColor: 'var(--bg-secondary)',
-            padding: 'var(--space-sm)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '11px',
-            marginTop: 'var(--space-xs)',
-            border: '1px solid var(--border-color)',
-            overflow: 'auto',
-            fontFamily: 'var(--font-mono)'
-          }}>
-            {test.inputData}
-          </pre>
-          {test.inputLines && (
-            <div style={{ marginTop: 'var(--space-xs)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Input Data</strong>
+            {test.inputLines && (
               <button
                 type="button"
                 onClick={() => setShowInputContext(prev => !prev)}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  color: 'var(--text-secondary)',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  padding: 0,
-                  textDecoration: 'underline'
-                }}
+                style={buttonStyle}
               >
-                {showInputContext ? 'Hide' : 'Show'} input context (+/- {CONTEXT_LINE_COUNT} lines)
+                {showInputContext ? 'Show Raw Data' : 'Show Context'}
               </button>
-            </div>
-          )}
-          {showInputContext && test.inputLines && (
-            <pre style={{
-              backgroundColor: 'var(--bg-secondary)',
-              padding: 'var(--space-sm)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '11px',
-              marginTop: 'var(--space-xs)',
-              border: '1px solid var(--border-color)',
-              overflow: 'auto',
-              fontFamily: 'var(--font-mono)'
-            }}>
-              {renderContextLines(test.inputLines.start, test.inputLines.end)}
-            </pre>
-          )}
+            )}
+          </div>
+          <div style={preStyle}>
+            {showInputContext && test.inputLines
+              ? renderContextBlock(test.inputLines.start, test.inputLines.end)
+              : test.inputData
+            }
+          </div>
         </div>
       )}
 
       {test.expectedOutput && (
         <div>
-          <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expected Result</strong>
-          <pre style={{
-            backgroundColor: 'var(--bg-secondary)',
-            padding: 'var(--space-sm)',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '11px',
-            marginTop: 'var(--space-xs)',
-            border: '1px solid var(--border-color)',
-            overflow: 'auto',
-            fontFamily: 'var(--font-mono)'
-          }}>
-            {test.expectedOutput}
-          </pre>
-          {test.outputLines && (
-            <div style={{ marginTop: 'var(--space-xs)' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Expected Result</strong>
+            {test.outputLines && (
               <button
                 type="button"
                 onClick={() => setShowOutputContext(prev => !prev)}
-                style={{
-                  border: 'none',
-                  background: 'none',
-                  color: 'var(--text-secondary)',
-                  fontSize: '11px',
-                  cursor: 'pointer',
-                  padding: 0,
-                  textDecoration: 'underline'
-                }}
+                style={buttonStyle}
               >
-                {showOutputContext ? 'Hide' : 'Show'} output context (+/- {CONTEXT_LINE_COUNT} lines)
+                {showOutputContext ? 'Show Raw Data' : 'Show Context'}
               </button>
-            </div>
-          )}
-          {showOutputContext && test.outputLines && (
-            <pre style={{
-              backgroundColor: 'var(--bg-secondary)',
-              padding: 'var(--space-sm)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '11px',
-              marginTop: 'var(--space-xs)',
-              border: '1px solid var(--border-color)',
-              overflow: 'auto',
-              fontFamily: 'var(--font-mono)'
-            }}>
-              {renderContextLines(test.outputLines.start, test.outputLines.end)}
-            </pre>
-          )}
+            )}
+          </div>
+          <div style={preStyle}>
+            {showOutputContext && test.outputLines
+              ? renderContextBlock(test.outputLines.start, test.outputLines.end)
+              : test.expectedOutput
+            }
+          </div>
         </div>
       )}
     </div>
