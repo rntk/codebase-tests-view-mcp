@@ -50,6 +50,20 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
         <div><strong>Target Lines:</strong> {test.coveredLines.start}-{test.coveredLines.end}</div>
       </div>
 
+      {test.comment && (
+        <div style={{ marginBottom: 'var(--space-md)' }}>
+          <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Comment</strong>
+          <div style={{
+            marginTop: 'var(--space-xs)',
+            fontSize: '12px',
+            color: 'var(--text-secondary)',
+            lineHeight: 1.4
+          }}>
+            {test.comment}
+          </div>
+        </div>
+      )}
+
       {test.inputData && (
         <div style={{ marginBottom: 'var(--space-md)' }}>
           <strong style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Input Data</strong>

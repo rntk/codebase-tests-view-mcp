@@ -110,6 +110,7 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 		detail := files.TestDetail{
 			TestFile:     testRef.TestFile,
 			TestName:     testRef.TestName,
+			Comment:      testRef.Comment,
 			LineRange:    testRef.LineRange,
 			CoveredLines: testRef.CoveredLines,
 			InputLines:   testRef.InputLines,

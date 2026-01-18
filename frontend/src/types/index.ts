@@ -14,6 +14,7 @@ export interface LineRange {
 export interface TestReference {
   testFile: string;
   testName: string;
+  comment?: string;
   lineRange: LineRange;
   coveredLines: LineRange;
   inputLines?: LineRange;
@@ -37,6 +38,7 @@ export interface FileContent {
 export interface TestDetail {
   testFile: string;
   testName: string;
+  comment?: string;
   content: string;
   lineRange: LineRange;
   coveredLines: LineRange;

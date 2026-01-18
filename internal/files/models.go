@@ -31,6 +31,7 @@ type FileMetadata struct {
 type TestReference struct {
 	TestFile     string    `json:"testFile"`
 	TestName     string    `json:"testName"`
+	Comment      string    `json:"comment,omitempty"`
 	LineRange    LineRange `json:"lineRange"`
 	CoveredLines LineRange `json:"coveredLines"`
 	InputLines   LineRange `json:"inputLines,omitempty"`
@@ -58,6 +59,7 @@ type FileResponse struct {
 type TestDetail struct {
 	TestFile       string    `json:"testFile"`
 	TestName       string    `json:"testName"`
+	Comment        string    `json:"comment,omitempty"`
 	Content        string    `json:"content"`
 	LineRange      LineRange `json:"lineRange"`
 	CoveredLines   LineRange `json:"coveredLines"`

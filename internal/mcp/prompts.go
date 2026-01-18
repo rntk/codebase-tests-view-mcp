@@ -45,11 +45,13 @@ func GetPromptContent(name string, args map[string]string) ([]PromptMessage, err
    * Which part of the source function the test exercises (line range in the source file).
    * The specific input data used in the test (line numbers in test file).
    * The expected result in the test (line numbers in test file).
+   * A brief comment/description of what the test verifies.
 
 When reporting the analysis, include **only** the following information for each test:
 
 - File name 
 - Test name
+- Comment
 - Covered lines (source)
 - Line numbers (test range)
 - Line numbers (input data)
@@ -63,6 +65,7 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
     {
       "testFile": "path/to/test_file.go",
       "testName": "TestFunctionName",
+      "comment": "Brief description of what the test verifies",
       "lineRange": {"start": 10, "end": 25},
       "coveredLines": {"start": 45, "end": 60},
       "inputLines": {"start": 12, "end": 15},
