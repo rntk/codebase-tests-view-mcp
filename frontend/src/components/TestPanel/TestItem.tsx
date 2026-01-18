@@ -1,5 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import type { TestDetail } from '../../types';
+
+const CONTEXT_LINE_COUNT = 10;
 
 interface TestItemProps {
   test: TestDetail;
@@ -8,6 +10,23 @@ interface TestItemProps {
 
 export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
   const itemRef = useRef<HTMLDivElement>(null);
+  const [showInputContext, setShowInputContext] = useState(false);
+  const [showOutputContext, setShowOutputContext] = useState(false);
+  const contentLines = useMemo(() => test.content.split(/\r?\n/), [test.content]);
+
+  const renderContextLines = (startLine: number, endLine: number) => {
+    const safeStart = Math.max(1, startLine - CONTEXT_LINE_COUNT);
+    const safeEnd = Math.min(contentLines.length, endLine + CONTEXT_LINE_COUNT);
+    const lineNumberWidth = String(safeEnd).length;
+    const formatted = [];
+
+    for (let lineNumber = safeStart; lineNumber <= safeEnd; lineNumber += 1) {
+      const line = contentLines[lineNumber - 1] ?? '';
+      formatted.push(`${String(lineNumber).padStart(lineNumberWidth, ' ')} | ${line}`);
+    }
+
+    return formatted.join('\n');
+  };
 
   useEffect(() => {
     if (isHighlighted && itemRef.current) {
@@ -48,6 +67,12 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
         <div style={{ wordBreak: 'break-all' }}><strong>File:</strong> {test.testFile}</div>
         <div><strong>Test Lines:</strong> {test.lineRange.start}-{test.lineRange.end}</div>
         <div><strong>Target Lines:</strong> {test.coveredLines.start}-{test.coveredLines.end}</div>
+        {test.inputLines && (
+          <div><strong>Input Lines:</strong> {test.inputLines.start}-{test.inputLines.end}</div>
+        )}
+        {test.outputLines && (
+          <div><strong>Output Lines:</strong> {test.outputLines.start}-{test.outputLines.end}</div>
+        )}
       </div>
 
       {test.comment && (
@@ -79,6 +104,39 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
           }}>
             {test.inputData}
           </pre>
+          {test.inputLines && (
+            <div style={{ marginTop: 'var(--space-xs)' }}>
+              <button
+                type="button"
+                onClick={() => setShowInputContext(prev => !prev)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  color: 'var(--text-secondary)',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  padding: 0,
+                  textDecoration: 'underline'
+                }}
+              >
+                {showInputContext ? 'Hide' : 'Show'} input context (+/- {CONTEXT_LINE_COUNT} lines)
+              </button>
+            </div>
+          )}
+          {showInputContext && test.inputLines && (
+            <pre style={{
+              backgroundColor: 'var(--bg-secondary)',
+              padding: 'var(--space-sm)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              marginTop: 'var(--space-xs)',
+              border: '1px solid var(--border-color)',
+              overflow: 'auto',
+              fontFamily: 'var(--font-mono)'
+            }}>
+              {renderContextLines(test.inputLines.start, test.inputLines.end)}
+            </pre>
+          )}
         </div>
       )}
 
@@ -97,6 +155,39 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
           }}>
             {test.expectedOutput}
           </pre>
+          {test.outputLines && (
+            <div style={{ marginTop: 'var(--space-xs)' }}>
+              <button
+                type="button"
+                onClick={() => setShowOutputContext(prev => !prev)}
+                style={{
+                  border: 'none',
+                  background: 'none',
+                  color: 'var(--text-secondary)',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  padding: 0,
+                  textDecoration: 'underline'
+                }}
+              >
+                {showOutputContext ? 'Hide' : 'Show'} output context (+/- {CONTEXT_LINE_COUNT} lines)
+              </button>
+            </div>
+          )}
+          {showOutputContext && test.outputLines && (
+            <pre style={{
+              backgroundColor: 'var(--bg-secondary)',
+              padding: 'var(--space-sm)',
+              borderRadius: 'var(--radius-sm)',
+              fontSize: '11px',
+              marginTop: 'var(--space-xs)',
+              border: '1px solid var(--border-color)',
+              overflow: 'auto',
+              fontFamily: 'var(--font-mono)'
+            }}>
+              {renderContextLines(test.outputLines.start, test.outputLines.end)}
+            </pre>
+          )}
         </div>
       )}
     </div>
