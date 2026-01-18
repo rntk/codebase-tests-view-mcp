@@ -36,6 +36,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
     children: testRefs.map((test) => ({
       id: `${test.testFile}:${test.testName}`,
       label: test.testName,
+      edgeLabel: test.comment,
     })),
   };
 
