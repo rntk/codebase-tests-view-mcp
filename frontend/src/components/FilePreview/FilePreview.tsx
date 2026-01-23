@@ -48,6 +48,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         content={file.content}
         filename={file.name}
         testReferences={testRefs}
+        coverageDepth={file.coverageDepth}
         onLineClick={onTestClick}
       />
 

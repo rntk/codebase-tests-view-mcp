@@ -13,18 +13,20 @@ type FileEntry struct {
 
 // FileContent represents file content with metadata
 type FileContent struct {
-	Path     string        `json:"path"`
-	Name     string        `json:"name"`
-	Content  string        `json:"content"`
-	Size     int64         `json:"size"`
-	ModTime  time.Time     `json:"modTime"`
-	MimeType string        `json:"mimeType"`
-	Metadata *FileMetadata `json:"metadata,omitempty"`
+	Path          string              `json:"path"`
+	Name          string              `json:"name"`
+	Content       string              `json:"content"`
+	Size          int64               `json:"size"`
+	ModTime       time.Time           `json:"modTime"`
+	MimeType      string              `json:"mimeType"`
+	Metadata      *FileMetadata       `json:"metadata,omitempty"`
+	CoverageDepth map[int][]string    `json:"coverageDepth,omitempty"` // line number -> list of test names
 }
 
 // FileMetadata contains test-related metadata for a file
 type FileMetadata struct {
-	Tests []TestReference `json:"tests,omitempty"`
+	Tests       []TestReference  `json:"tests,omitempty"`
+	Suggestions []TestSuggestion `json:"suggestions,omitempty"`
 }
 
 // TestReference links a source file to its tests
@@ -73,4 +75,21 @@ type TestDetail struct {
 type TestsResponse struct {
 	SourceFile string       `json:"sourceFile"`
 	Tests      []TestDetail `json:"tests"`
+}
+
+// TestSuggestion represents a suggested test for uncovered code
+type TestSuggestion struct {
+	SourceFile    string    `json:"sourceFile"`
+	FunctionName  string    `json:"functionName,omitempty"`
+	TargetLines   LineRange `json:"targetLines"`
+	Reason        string    `json:"reason"`
+	SuggestedName string    `json:"suggestedName"`
+	TestSkeleton  string    `json:"testSkeleton"`
+	Priority      string    `json:"priority"` // high, medium, low
+}
+
+// SuggestionsResponse for GET /api/files/{path}/suggestions
+type SuggestionsResponse struct {
+	SourceFile  string           `json:"sourceFile"`
+	Suggestions []TestSuggestion `json:"suggestions"`
 }

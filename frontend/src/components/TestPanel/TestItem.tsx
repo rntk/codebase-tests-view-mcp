@@ -139,6 +139,7 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
                 type="button"
                 onClick={() => setShowInputContext(prev => !prev)}
                 style={buttonStyle}
+                title={showInputContext ? 'Show only the input data' : 'Show input data with surrounding lines from the test file'}
               >
                 {showInputContext ? 'Show Raw Data' : 'Show Context'}
               </button>
@@ -162,6 +163,7 @@ export const TestItem: React.FC<TestItemProps> = ({ test, isHighlighted }) => {
                 type="button"
                 onClick={() => setShowOutputContext(prev => !prev)}
                 style={buttonStyle}
+                title={showOutputContext ? 'Show only the expected result' : 'Show expected result with surrounding lines from the test file'}
               >
                 {showOutputContext ? 'Show Raw Data' : 'Show Context'}
               </button>

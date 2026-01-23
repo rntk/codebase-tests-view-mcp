@@ -232,6 +232,8 @@ func (h *Handler) handleToolsCall(params json.RawMessage) (interface{}, error) {
 	switch callParams.Name {
 	case "submit-test-metadata":
 		return h.executeSubmitTestMetadata(callParams.Arguments)
+	case "suggest-missing-tests":
+		return h.executeSuggestMissingTests(callParams.Arguments)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", callParams.Name)
 	}
@@ -271,6 +273,50 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 			{
 				Type: "text",
 				Text: fmt.Sprintf("Successfully stored test metadata for %s (%d tests)", sourceFile, len(tests)),
+			},
+		},
+	}, nil
+}
+
+// executeSuggestMissingTests executes the suggest-missing-tests tool
+func (h *Handler) executeSuggestMissingTests(args map[string]interface{}) (interface{}, error) {
+	// Extract sourceFile
+	sourceFile, ok := args["sourceFile"].(string)
+	if !ok {
+		return nil, fmt.Errorf("sourceFile is required and must be a string")
+	}
+
+	// Extract suggestions array
+	suggestionsRaw, ok := args["suggestions"]
+	if !ok {
+		return nil, fmt.Errorf("suggestions is required")
+	}
+
+	suggestionsJSON, err := json.Marshal(suggestionsRaw)
+	if err != nil {
+		return nil, fmt.Errorf("failed to marshal suggestions: %w", err)
+	}
+
+	var suggestions []metadata.TestSuggestion
+	if err := json.Unmarshal(suggestionsJSON, &suggestions); err != nil {
+		return nil, fmt.Errorf("invalid suggestions format: %w", err)
+	}
+
+	// Set the sourceFile on each suggestion
+	for i := range suggestions {
+		suggestions[i].SourceFile = sourceFile
+	}
+
+	// Store suggestions (merge with existing)
+	if err := h.metaStore.AddSuggestions(sourceFile, suggestions); err != nil {
+		return nil, fmt.Errorf("failed to store suggestions: %w", err)
+	}
+
+	return ToolsCallResult{
+		Content: []ContentItem{
+			{
+				Type: "text",
+				Text: fmt.Sprintf("Successfully stored %d test suggestion(s) for %s", len(suggestions), sourceFile),
 			},
 		},
 	}, nil

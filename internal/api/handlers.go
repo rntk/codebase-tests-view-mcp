@@ -67,6 +67,17 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 	metadata := h.metaStore.GetTestMetadata(path)
 	if metadata != nil {
 		fileContent.Metadata = metadata
+
+		// Calculate coverage depth: map of line number -> list of test names covering it
+		if len(metadata.Tests) > 0 {
+			coverageDepth := make(map[int][]string)
+			for _, test := range metadata.Tests {
+				for line := test.CoveredLines.Start; line <= test.CoveredLines.End; line++ {
+					coverageDepth[line] = append(coverageDepth[line], test.TestName)
+				}
+			}
+			fileContent.CoverageDepth = coverageDepth
+		}
 	}
 
 	response := files.FileResponse{
@@ -140,6 +151,32 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 	response := files.TestsResponse{
 		SourceFile: path,
 		Tests:      testDetails,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// GetSuggestions handles GET /api/files/{path}/suggestions
+func (h *Handler) GetSuggestions(w http.ResponseWriter, r *http.Request) {
+	path := r.PathValue("path")
+	if path == "" {
+		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+
+	// Get suggestions for the file
+	suggestions := h.metaStore.GetSuggestions(path)
+	if suggestions == nil {
+		suggestions = []files.TestSuggestion{}
+	}
+
+	response := files.SuggestionsResponse{
+		SourceFile:  path,
+		Suggestions: suggestions,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

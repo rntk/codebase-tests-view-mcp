@@ -1,4 +1,4 @@
-import type { ListFilesResponse, FileResponse, TestsResponse } from '../types';
+import type { ListFilesResponse, FileResponse, TestsResponse, SuggestionsResponse } from '../types';
 
 const API_BASE = '/api';
 
@@ -22,6 +22,14 @@ export async function getRelatedTests(path: string): Promise<TestsResponse> {
   const response = await fetch(`${API_BASE}/files/${encodeURIComponent(path)}/tests`);
   if (!response.ok) {
     throw new Error(`Failed to get tests: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function getSuggestions(path: string): Promise<SuggestionsResponse> {
+  const response = await fetch(`${API_BASE}/files/${encodeURIComponent(path)}/suggestions`);
+  if (!response.ok) {
+    throw new Error(`Failed to get suggestions: ${response.statusText}`);
   }
   return response.json();
 }

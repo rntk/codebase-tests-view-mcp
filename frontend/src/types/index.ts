@@ -23,6 +23,22 @@ export interface TestReference {
 
 export interface FileMetadata {
   tests?: TestReference[];
+  suggestions?: TestSuggestion[];
+}
+
+export interface TestSuggestion {
+  sourceFile: string;
+  functionName?: string;
+  targetLines: LineRange;
+  reason: string;
+  suggestedName: string;
+  testSkeleton: string;
+  priority: 'high' | 'medium' | 'low';
+}
+
+export interface SuggestionsResponse {
+  sourceFile: string;
+  suggestions: TestSuggestion[];
 }
 
 export interface FileContent {
@@ -33,6 +49,11 @@ export interface FileContent {
   modTime: string;
   mimeType: string;
   metadata?: FileMetadata;
+  coverageDepth?: CoverageDepth;
+}
+
+export interface CoverageDepth {
+  [lineNumber: number]: string[]; // line number -> test names
 }
 
 export interface TestDetail {
@@ -67,4 +88,12 @@ export interface MindMapNode {
   label: string;
   children?: MindMapNode[];
   edgeLabel?: string;
+}
+
+export type LayoutType = 'horizontal' | 'radial' | 'clustered';
+
+export interface MindMapTransform {
+  x: number;
+  y: number;
+  scale: number;
 }

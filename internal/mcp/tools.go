@@ -75,5 +75,59 @@ func GetTools() []Tool {
 				"required": ["sourceFile", "tests"]
 			}`),
 		},
+		{
+			Name:        "suggest-missing-tests",
+			Description: "Submit suggestions for missing tests for uncovered code. This tool allows LLM agents to suggest tests that should be written for functions or code sections that lack test coverage. Suggestions include a test skeleton, priority level, and reasoning.",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"sourceFile": {
+						"type": "string",
+						"description": "Path to the source file that needs tests"
+					},
+					"functionName": {
+						"type": "string",
+						"description": "Optional name of the function to suggest tests for"
+					},
+					"suggestions": {
+						"type": "array",
+						"description": "Array of test suggestions",
+						"items": {
+							"type": "object",
+							"properties": {
+								"targetLines": {
+									"type": "object",
+									"description": "Line range in the source file that needs test coverage",
+									"properties": {
+										"start": {"type": "integer", "description": "Starting line number (1-indexed)"},
+										"end": {"type": "integer", "description": "Ending line number (1-indexed, inclusive)"}
+									},
+									"required": ["start", "end"]
+								},
+								"reason": {
+									"type": "string",
+									"description": "Explanation of why this test is needed"
+								},
+								"suggestedName": {
+									"type": "string",
+									"description": "Suggested name for the test function"
+								},
+								"testSkeleton": {
+									"type": "string",
+									"description": "Code skeleton for the suggested test"
+								},
+								"priority": {
+									"type": "string",
+									"enum": ["high", "medium", "low"],
+									"description": "Priority level of the suggested test"
+								}
+							},
+							"required": ["targetLines", "reason", "suggestedName", "testSkeleton", "priority"]
+						}
+					}
+				},
+				"required": ["sourceFile", "suggestions"]
+			}`),
+		},
 	}
 }

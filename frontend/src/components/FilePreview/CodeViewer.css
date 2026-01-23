@@ -15,6 +15,18 @@
     font-size: 13px;
     color: var(--text-secondary);
     font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.coverage-indicator {
+    font-size: 10px;
+    padding: 2px 6px;
+    background-color: #dcfce7;
+    color: #16a34a;
+    border-radius: 10px;
+    font-weight: 500;
 }
 
 .code-viewer-content {
@@ -41,6 +53,36 @@
     display: block;
 }
 
+/* Coverage gutter column */
+.coverage-gutter {
+    padding: var(--space-md) 0;
+    background-color: #f8fafc;
+    border-right: 1px solid var(--border-color);
+    width: 50px;
+    min-width: 50px;
+    display: flex;
+    flex-direction: column;
+}
+
+.coverage-bar-container {
+    height: 1.6em;
+    padding: 0 4px;
+    display: flex;
+    align-items: center;
+    cursor: default;
+}
+
+.coverage-bar {
+    height: 12px;
+    border-radius: 2px;
+    transition: width 0.2s ease, background-color 0.2s ease;
+    min-width: 0;
+}
+
+.coverage-bar-container:hover .coverage-bar {
+    opacity: 0.8;
+}
+
 .code-lines {
     padding: var(--space-md) 0;
     flex-grow: 1;
@@ -63,4 +105,12 @@
 
 .code-line.highlighted:hover {
     background-color: #fde68a;
+}
+
+.code-line.covered {
+    background-color: rgba(220, 252, 231, 0.3);
+}
+
+.code-line.covered:hover {
+    background-color: rgba(220, 252, 231, 0.5);
 }
