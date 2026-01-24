@@ -162,6 +162,20 @@ The dev server will proxy `/api/*` requests to `http://localhost:8080`.
 go run ./cmd/server -port 8080 -dir . -metadata metadata.json
 ```
 
+### Linting
+
+You can use the provided Dockerfiles to run linting checks for both Go and TypeScript:
+
+```bash
+# Run Golang lint
+docker build -f Dockerfile.lint.golang -t lint-golang .
+docker run --rm -v $(pwd):/workspace lint-golang
+
+# Run TypeScript lint
+docker build -f Dockerfile.lint.typescript -t lint-typescript .
+docker run --rm -v $(pwd):/workspace lint-typescript
+```
+
 ## Project Structure
 
 ```

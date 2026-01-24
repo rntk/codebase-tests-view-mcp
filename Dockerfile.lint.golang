@@ -1,0 +1,5 @@
+FROM golangci/golangci-lint:v2.8-alpine
+
+WORKDIR /workspace
+ENTRYPOINT ["golangci-lint"]
+CMD ["run", "./..."]

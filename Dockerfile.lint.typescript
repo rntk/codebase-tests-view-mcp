@@ -1,0 +1,6 @@
+FROM node:24-alpine
+
+WORKDIR /workspace
+ENV npm_config_fund=false \
+    npm_config_audit=false
+CMD ["sh", "-c", "npm ci --prefix frontend && npx --prefix frontend tsc --noEmit -p frontend/tsconfig.json"]
