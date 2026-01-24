@@ -13,10 +13,10 @@ interface PositionedNode {
   x: number;
   y: number;
   isRoot: boolean;
+  depth: number;
 }
 
 export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
-  const children = useMemo(() => data.children || [], [data.children]);
   const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
 
@@ -37,87 +37,159 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
   const radialRadius = 250;
 
   // Calculate dimensions based on layout
-  const { totalWidth, totalHeight, positions } = useMemo(() => {
+  const { totalWidth, totalHeight, positions, edges } = useMemo(() => {
     const positionedNodes: PositionedNode[] = [];
-    let width: number;
-    let height: number;
+    const edgePairs: Array<{ fromId: string; toId: string }> = [];
 
-    if (layout === 'horizontal') {
-      // Original horizontal layout
+    const functions = data.children || [];
+    const hasGrandchildren = functions.some((fn) => (fn.children?.length ?? 0) > 0);
+
+    const addEdge = (fromId: string, toId: string) => {
+      edgePairs.push({ fromId, toId });
+    };
+
+    const buildHorizontalLayout = (groups: MindMapNode[][]) => {
       const minHeight = 400;
-      height = Math.max(minHeight, children.length * vSpacing + 100);
-      width = xPadding * 2 + nodeWidth + hSpacing;
+      const clusterGapSlots = Math.max(groups.length - 1, 0);
+      const totalSlots = groups.reduce((count, group) => {
+        return count + group.reduce((sum, fn) => sum + Math.max(1, fn.children?.length ?? 0), 0);
+      }, 0) + clusterGapSlots;
 
+      const height = Math.max(minHeight, totalSlots * vSpacing + 100);
       const rootX = xPadding + nodeWidth / 2;
-      const rootY = height / 2;
-      const childX = rootX + hSpacing;
+      const functionX = rootX + hSpacing;
+      const testX = rootX + hSpacing * (hasGrandchildren ? 2 : 1);
 
-      positionedNodes.push({ node: data, x: rootX, y: rootY, isRoot: true });
+      let cursorY = (height - (totalSlots - 1) * vSpacing) / 2;
+      const functionPositions: PositionedNode[] = [];
 
-      const totalChildrenHeight = (children.length - 1) * vSpacing;
-      const startY = rootY - totalChildrenHeight / 2;
+      groups.forEach((group, groupIndex) => {
+        group.forEach((fn) => {
+          const tests = fn.children || [];
+          if (tests.length > 0) {
+            const firstTestY = cursorY;
+            tests.forEach((test) => {
+              positionedNodes.push({
+                node: test,
+                x: testX,
+                y: cursorY,
+                isRoot: false,
+                depth: 2,
+              });
+              addEdge(fn.id, test.id);
+              cursorY += vSpacing;
+            });
+            const lastTestY = cursorY - vSpacing;
+            functionPositions.push({
+              node: fn,
+              x: functionX,
+              y: (firstTestY + lastTestY) / 2,
+              isRoot: false,
+              depth: 1,
+            });
+          } else {
+            functionPositions.push({
+              node: fn,
+              x: functionX,
+              y: cursorY,
+              isRoot: false,
+              depth: 1,
+            });
+            cursorY += vSpacing;
+          }
+        });
 
-      children.forEach((child, index) => {
-        const childY = children.length === 1 ? rootY : startY + index * vSpacing;
-        positionedNodes.push({ node: child, x: childX, y: childY, isRoot: false });
+        if (groupIndex < groups.length - 1) {
+          cursorY += vSpacing;
+        }
       });
-    } else if (layout === 'radial') {
-      // Radial layout - nodes in a circle around root
-      const size = radialRadius * 2 + nodeWidth + xPadding * 2;
+
+      const rootY = functionPositions.length > 0
+        ? functionPositions.reduce((sum, fn) => sum + fn.y, 0) / functionPositions.length
+        : height / 2;
+
+      positionedNodes.push({
+        node: data,
+        x: rootX,
+        y: rootY,
+        isRoot: true,
+        depth: 0,
+      });
+
+      functionPositions.forEach((fn) => {
+        positionedNodes.push(fn);
+        addEdge(data.id, fn.node.id);
+      });
+
+      const width = xPadding * 2 + nodeWidth + hSpacing * (hasGrandchildren ? 2 : 1);
+      return { width, height };
+    };
+
+    let width = 0;
+    let height = 0;
+
+    if (layout === 'radial') {
+      const functionCount = functions.length;
+      const functionRadius = radialRadius;
+      const testRadius = radialRadius + 220;
+      const outerRadius = hasGrandchildren ? testRadius : functionRadius;
+      const size = outerRadius * 2 + nodeWidth + xPadding * 2;
+
       width = size;
       height = size;
 
       const centerX = size / 2;
       const centerY = size / 2;
 
-      positionedNodes.push({ node: data, x: centerX, y: centerY, isRoot: true });
+      positionedNodes.push({ node: data, x: centerX, y: centerY, isRoot: true, depth: 0 });
 
-      if (children.length > 0) {
-        const angleStep = (2 * Math.PI) / children.length;
-        children.forEach((child, index) => {
-          const angle = index * angleStep - Math.PI / 2; // Start from top
-          const childX = centerX + radialRadius * Math.cos(angle);
-          const childY = centerY + radialRadius * Math.sin(angle);
-          positionedNodes.push({ node: child, x: childX, y: childY, isRoot: false });
+      if (functionCount > 0) {
+        const angleStep = (2 * Math.PI) / functionCount;
+        functions.forEach((fn, index) => {
+          const angle = index * angleStep - Math.PI / 2;
+          const fnX = centerX + functionRadius * Math.cos(angle);
+          const fnY = centerY + functionRadius * Math.sin(angle);
+          positionedNodes.push({ node: fn, x: fnX, y: fnY, isRoot: false, depth: 1 });
+          addEdge(data.id, fn.id);
+
+          const tests = fn.children || [];
+          if (tests.length > 0) {
+            const sector = Math.min(angleStep * 0.8, Math.PI / 2);
+            const startAngle = angle - sector / 2;
+            const testStep = tests.length > 1 ? sector / (tests.length - 1) : 0;
+            tests.forEach((test, testIndex) => {
+              const testAngle = tests.length > 1 ? startAngle + testStep * testIndex : angle;
+              const testX = centerX + testRadius * Math.cos(testAngle);
+              const testY = centerY + testRadius * Math.sin(testAngle);
+              positionedNodes.push({ node: test, x: testX, y: testY, isRoot: false, depth: 2 });
+              addEdge(fn.id, test.id);
+            });
+          }
         });
       }
     } else {
-      // Clustered layout - group by first letter (simulated clustering)
-      const clusters = new Map<string, MindMapNode[]>();
-      children.forEach(child => {
-        const key = child.label.charAt(0).toUpperCase();
-        if (!clusters.has(key)) {
-          clusters.set(key, []);
-        }
-        clusters.get(key)!.push(child);
-      });
-
-      const clusterCount = clusters.size;
-      const nodesPerCluster = Math.ceil(children.length / Math.max(clusterCount, 1));
-      height = Math.max(400, nodesPerCluster * vSpacing + 150);
-      width = xPadding * 2 + nodeWidth + hSpacing + (clusterCount > 3 ? 200 : 0);
-
-      const rootX = xPadding + nodeWidth / 2;
-      const rootY = height / 2;
-
-      positionedNodes.push({ node: data, x: rootX, y: rootY, isRoot: true });
-
-      let clusterIndex = 0;
-      clusters.forEach((clusterNodes) => {
-        const clusterX = rootX + hSpacing + (clusterIndex % 2) * 100;
-        const clusterStartY = rootY - ((clusterNodes.length - 1) * vSpacing) / 2;
-
-        clusterNodes.forEach((child, nodeIndex) => {
-          const childY = clusterStartY + nodeIndex * vSpacing + clusterIndex * 20;
-          positionedNodes.push({ node: child, x: clusterX, y: childY, isRoot: false });
+      if (layout === 'clustered' && functions.length > 0) {
+        const clusters = new Map<string, MindMapNode[]>();
+        functions.forEach((fn) => {
+          const key = fn.label.charAt(0).toUpperCase() || '#';
+          if (!clusters.has(key)) {
+            clusters.set(key, []);
+          }
+          clusters.get(key)!.push(fn);
         });
-
-        clusterIndex++;
-      });
+        const orderedGroups = Array.from(clusters.keys()).sort().map((key) => clusters.get(key)!);
+        const layoutResult = buildHorizontalLayout(orderedGroups);
+        width = layoutResult.width;
+        height = layoutResult.height;
+      } else {
+        const layoutResult = buildHorizontalLayout([functions]);
+        width = layoutResult.width;
+        height = layoutResult.height;
+      }
     }
 
-    return { totalWidth: width, totalHeight: height, positions: positionedNodes };
-  }, [data, children, layout]);
+    return { totalWidth: width, totalHeight: height, positions: positionedNodes, edges: edgePairs };
+  }, [data, layout]);
 
   // Search filtering
   const matchingNodeIds = useMemo(() => {
@@ -125,17 +197,16 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
     const term = searchTerm.toLowerCase();
     const matches = new Set<string>();
 
-    if (data.label.toLowerCase().includes(term)) {
-      matches.add(data.id);
-    }
-    children.forEach(child => {
-      if (child.label.toLowerCase().includes(term) || child.edgeLabel?.toLowerCase().includes(term)) {
-        matches.add(child.id);
+    const visit = (node: MindMapNode) => {
+      if (node.label.toLowerCase().includes(term) || node.edgeLabel?.toLowerCase().includes(term)) {
+        matches.add(node.id);
       }
-    });
+      node.children?.forEach(visit);
+    };
 
+    visit(data);
     return matches;
-  }, [searchTerm, data, children]);
+  }, [searchTerm, data]);
 
   // Zoom handlers
   const handleWheel = useCallback((e: React.WheelEvent) => {
@@ -200,8 +271,16 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
     return `M ${from.x + nodeWidth / 2} ${from.y} C ${midX} ${from.y}, ${midX} ${to.y}, ${to.x - nodeWidth / 2} ${to.y}`;
   };
 
-  const rootPosition = positions.find(p => p.isRoot);
-  const childPositions = positions.filter(p => !p.isRoot);
+  const positionsById = useMemo(() => {
+    const map = new Map<string, PositionedNode>();
+    positions.forEach((pos) => {
+      map.set(pos.node.id, pos);
+    });
+    return map;
+  }, [positions]);
+  const orderedPositions = useMemo(() => {
+    return [...positions].sort((a, b) => a.depth - b.depth);
+  }, [positions]);
 
   return (
     <div
@@ -274,6 +353,10 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
               <stop offset="0%" stopColor="#10b981" />
               <stop offset="100%" stopColor="#059669" />
             </linearGradient>
+            <linearGradient id="leafGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+              <stop offset="0%" stopColor="#0ea5e9" />
+              <stop offset="100%" stopColor="#0284c7" />
+            </linearGradient>
             <linearGradient id="highlightGradient" x1="0%" y1="0%" x2="100%" y2="0%">
               <stop offset="0%" stopColor="#f59e0b" />
               <stop offset="100%" stopColor="#d97706" />
@@ -281,15 +364,21 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
           </defs>
 
           {/* Edges */}
-          {rootPosition && childPositions.map((childPos) => {
-            const path = renderEdge(rootPosition, childPos);
+          {edges.map((edge) => {
+            const from = positionsById.get(edge.fromId);
+            const to = positionsById.get(edge.toId);
+            if (!from || !to) {
+              return null;
+            }
+            const path = renderEdge(from, to);
             const labelX = layout === 'radial'
-              ? (rootPosition.x + childPos.x) / 2
-              : (rootPosition.x + nodeWidth / 2 + childPos.x - nodeWidth / 2) / 2;
-            const labelY = (rootPosition.y + childPos.y) / 2;
+              ? (from.x + to.x) / 2
+              : (from.x + nodeWidth / 2 + to.x - nodeWidth / 2) / 2;
+            const labelY = (from.y + to.y) / 2;
+            const edgeLabel = to.node.edgeLabel;
 
             return (
-              <g key={`edge-group-${childPos.node.id}`} style={{ opacity: getNodeOpacity(childPos.node.id) }}>
+              <g key={`edge-group-${edge.fromId}-${edge.toId}`} style={{ opacity: getNodeOpacity(to.node.id) }}>
                 <path
                   d={path}
                   fill="none"
@@ -301,7 +390,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
                   }}
                 />
 
-                {childPos.node.edgeLabel && (
+                {edgeLabel && (
                   <foreignObject
                     x={labelX - 100}
                     y={labelY - 12}
@@ -316,7 +405,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
                       width: '100%',
                       height: '100%'
                     }}>
-                      <span title={childPos.node.edgeLabel} style={{
+                      <span title={edgeLabel} style={{
                         background: 'var(--bg-primary)',
                         border: '1px solid var(--border-color)',
                         padding: '2px 8px',
@@ -329,7 +418,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis'
                       }}>
-                        {childPos.node.edgeLabel}
+                        {edgeLabel}
                       </span>
                     </div>
                   </foreignObject>
@@ -338,78 +427,62 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
             );
           })}
 
-          {/* Root Node */}
-          {rootPosition && (
-            <g
-              className="node root-node"
-              onClick={() => onNodeClick?.(data.id)}
-              style={{
-                cursor: 'pointer',
-                opacity: getNodeOpacity(data.id),
-                transition: 'all 0.3s ease-out',
-              }}
-              filter="url(#shadow)"
-            >
-              <rect
-                x={rootPosition.x - nodeWidth / 2}
-                y={rootPosition.y - nodeHeight / 2}
-                width={nodeWidth}
-                height={nodeHeight}
-                rx="8"
-                fill={matchingNodeIds.has(data.id) && searchTerm ? 'url(#highlightGradient)' : 'url(#rootGradient)'}
-                style={{ transition: 'all 0.3s ease-out' }}
-              />
-              <text
-                x={rootPosition.x}
-                y={rootPosition.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="white"
-                fontSize="14"
-                fontWeight="600"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
-              >
-                {data.label.length > 25 ? '...' + data.label.slice(-22) : data.label}
-              </text>
-            </g>
-          )}
+          {/* Nodes */}
+          {orderedPositions.map((pos) => {
+            const isLeaf = !pos.node.children || pos.node.children.length === 0;
+            const displayLabel = pos.isRoot
+              ? (pos.node.label.length > 25 ? '...' + pos.node.label.slice(-22) : pos.node.label)
+              : (pos.node.label.length > 25 ? pos.node.label.substring(0, 22) + '...' : pos.node.label);
+            const fill = matchingNodeIds.has(pos.node.id) && searchTerm
+              ? 'url(#highlightGradient)'
+              : pos.isRoot
+                ? 'url(#rootGradient)'
+                : pos.depth === 1
+                  ? 'url(#childGradient)'
+                  : 'url(#leafGradient)';
+            const fontSize = pos.isRoot ? '14' : pos.depth === 1 ? '12' : '11';
+            const fontWeight = pos.isRoot ? '600' : '500';
 
-          {/* Child Nodes */}
-          {childPositions.map((childPos) => (
-            <g
-              key={childPos.node.id}
-              className="node child-node"
-              onClick={() => onNodeClick?.(childPos.node.id)}
-              style={{
-                cursor: 'pointer',
-                opacity: getNodeOpacity(childPos.node.id),
-                transition: 'all 0.3s ease-out',
-              }}
-              filter="url(#shadow)"
-            >
-              <rect
-                x={childPos.x - nodeWidth / 2}
-                y={childPos.y - nodeHeight / 2}
-                width={nodeWidth}
-                height={nodeHeight}
-                rx="8"
-                fill={matchingNodeIds.has(childPos.node.id) && searchTerm ? 'url(#highlightGradient)' : 'url(#childGradient)'}
-                style={{ transition: 'all 0.3s ease-out' }}
-              />
-              <text
-                x={childPos.x}
-                y={childPos.y}
-                textAnchor="middle"
-                dominantBaseline="middle"
-                fill="white"
-                fontSize="12"
-                fontWeight="500"
-                style={{ pointerEvents: 'none', userSelect: 'none' }}
+            return (
+              <g
+                key={pos.node.id}
+                className={`node ${pos.isRoot ? 'root-node' : pos.depth === 1 ? 'child-node' : 'leaf-node'}`}
+                onClick={() => {
+                  if (isLeaf) {
+                    onNodeClick?.(pos.node.id);
+                  }
+                }}
+                style={{
+                  cursor: isLeaf ? 'pointer' : 'default',
+                  opacity: getNodeOpacity(pos.node.id),
+                  transition: 'all 0.3s ease-out',
+                }}
+                filter="url(#shadow)"
               >
-                {childPos.node.label.length > 25 ? childPos.node.label.substring(0, 22) + '...' : childPos.node.label}
-              </text>
-            </g>
-          ))}
+                <rect
+                  x={pos.x - nodeWidth / 2}
+                  y={pos.y - nodeHeight / 2}
+                  width={nodeWidth}
+                  height={nodeHeight}
+                  rx="8"
+                  fill={fill}
+                  style={{ transition: 'all 0.3s ease-out' }}
+                />
+                <text
+                  x={pos.x}
+                  y={pos.y}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fill="white"
+                  fontSize={fontSize}
+                  fontWeight={fontWeight}
+                  style={{ pointerEvents: 'none', userSelect: 'none' }}
+                >
+                  {displayLabel}
+                </text>
+              </g>
+            );
+          })}
         </svg>
       </div>
 

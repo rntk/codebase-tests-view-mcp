@@ -25,6 +25,10 @@ func GetTools() []Tool {
 									"type": "string",
 									"description": "Path to the test file"
 								},
+								"functionName": {
+									"type": "string",
+									"description": "Name of the source function being tested"
+								},
 								"testName": {
 									"type": "string",
 									"description": "Name of the test function/method"
@@ -69,7 +73,7 @@ func GetTools() []Tool {
 									}
 								}
 							},
-							"required": ["testFile", "testName", "comment", "lineRange", "coveredLines"]
+							"required": ["testFile", "functionName", "testName", "comment", "lineRange", "coveredLines"]
 						}
 					}
 				},

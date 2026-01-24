@@ -264,6 +264,9 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 		return nil, fmt.Errorf("invalid tests format: %w", err)
 	}
 	for i, test := range tests {
+		if strings.TrimSpace(test.FunctionName) == "" {
+			return nil, fmt.Errorf("functionName is required for test %d (%s)", i, test.TestName)
+		}
 		if strings.TrimSpace(test.Comment) == "" {
 			return nil, fmt.Errorf("comment is required for test %d (%s)", i, test.TestName)
 		}

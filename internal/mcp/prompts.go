@@ -47,10 +47,12 @@ func GetPromptContent(name string, args map[string]string) ([]PromptMessage, err
    * The expected result in the test (line numbers in test file).
    * A brief comment/description of what the test verifies.
      - Every test must include a non-empty comment; do not omit it.
+   * The source function name (use the function name provided in this prompt, not the test name).
 
 When reporting the analysis, include **only** the following information for each test:
 
 - File name 
+- Function name (source)
 - Test name
 - Comment
 - Covered lines (source)
@@ -65,6 +67,7 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
   "tests": [
     {
       "testFile": "path/to/test_file.go",
+      "functionName": "%s",
       "testName": "TestFunctionName",
       "comment": "Brief description of what the test verifies",
       "lineRange": {"start": 10, "end": 25},
@@ -77,8 +80,9 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
 
 **IMPORTANT**:
 - "lineRange" refers to the lines in the TEST file where the test code is located
+- "functionName" must be the source function name from this prompt (not the test name)
 - "coveredLines" refers to the lines in the SOURCE file (%s) that this test covers
-- "inputLines" and "outputLines" refer to lines in the TEST file`, functionName, filePath, filePath, filePath)
+- "inputLines" and "outputLines" refer to lines in the TEST file`, functionName, filePath, filePath, functionName, filePath)
 
 		return []PromptMessage{
 			{

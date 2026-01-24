@@ -12,6 +12,7 @@ export interface LineRange {
 }
 
 export interface TestReference {
+  functionName: string;
   testFile: string;
   testName: string;
   comment?: string;
@@ -57,6 +58,7 @@ export interface CoverageDepth {
 }
 
 export interface TestDetail {
+  functionName: string;
   testFile: string;
   testName: string;
   comment?: string;

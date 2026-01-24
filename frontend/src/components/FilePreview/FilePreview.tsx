@@ -40,13 +40,28 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   // Filter testRefs if a line is selected
   testRefs = filterItemsByLine(testRefs, selectedLine, (test) => test.coveredLines);
 
+  const functionMap = new Map<string, typeof testRefs>();
+  testRefs.forEach((test) => {
+    const functionName = test.functionName.trim();
+    const existing = functionMap.get(functionName);
+    if (existing) {
+      existing.push(test);
+    } else {
+      functionMap.set(functionName, [test]);
+    }
+  });
+
   const mindMapData: MindMapNode = {
     id: file.path,
     label: file.name,
-    children: testRefs.map((test) => ({
-      id: `${test.testFile}:${test.testName}`,
-      label: test.testName,
-      edgeLabel: test.comment,
+    children: Array.from(functionMap.entries()).map(([functionName, tests]) => ({
+      id: `func:${file.path}:${functionName}`,
+      label: functionName,
+      children: tests.map((test) => ({
+        id: `${test.testFile}:${test.testName}`,
+        label: test.testName,
+        edgeLabel: test.comment,
+      })),
     })),
   };
 

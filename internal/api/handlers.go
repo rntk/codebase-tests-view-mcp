@@ -119,6 +119,7 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 	var testDetails []files.TestDetail
 	for _, testRef := range fileMeta.Tests {
 		detail := files.TestDetail{
+			FunctionName: testRef.FunctionName,
 			TestFile:     testRef.TestFile,
 			TestName:     testRef.TestName,
 			Comment:      testRef.Comment,

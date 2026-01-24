@@ -31,6 +31,7 @@ type FileMetadata struct {
 
 // TestReference links a source file to its tests
 type TestReference struct {
+	FunctionName string    `json:"functionName"`
 	TestFile     string    `json:"testFile"`
 	TestName     string    `json:"testName"`
 	Comment      string    `json:"comment,omitempty"`
@@ -59,6 +60,7 @@ type FileResponse struct {
 
 // TestDetail contains full test information
 type TestDetail struct {
+	FunctionName  string    `json:"functionName"`
 	TestFile       string    `json:"testFile"`
 	TestName       string    `json:"testName"`
 	Comment        string    `json:"comment,omitempty"`
