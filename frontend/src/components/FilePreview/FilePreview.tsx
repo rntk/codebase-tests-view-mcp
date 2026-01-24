@@ -3,11 +3,15 @@ import { CodeViewer } from './CodeViewer';
 import { MindMap } from '../MindMap/MindMap';
 import type { FileContent, MindMapNode } from '../../types';
 
+import { filterItemsByLine } from '../../utils/testUtils';
+
 interface FilePreviewProps {
   file: FileContent | null;
   loading: boolean;
   error: string | null;
   onTestClick?: (testId: string) => void;
+  selectedLine?: number | null;
+  onLineSelect?: (line: number) => void;
 }
 
 export const FilePreview: React.FC<FilePreviewProps> = ({
@@ -15,6 +19,8 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   loading,
   error,
   onTestClick,
+  selectedLine,
+  onLineSelect,
 }) => {
   if (loading) {
     return <div>Loading file...</div>;
@@ -29,7 +35,11 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   }
 
   // Build mind map data from file metadata
-  const testRefs = file.metadata?.tests ?? [];
+  let testRefs = file.metadata?.tests ?? [];
+
+  // Filter testRefs if a line is selected
+  testRefs = filterItemsByLine(testRefs, selectedLine, (test) => test.coveredLines);
+
   const mindMapData: MindMapNode = {
     id: file.path,
     label: file.name,
@@ -47,9 +57,11 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       <CodeViewer
         content={file.content}
         filename={file.name}
-        testReferences={testRefs}
+        testReferences={file.metadata?.tests ?? []}
         coverageDepth={file.coverageDepth}
         onLineClick={onTestClick}
+        selectedLine={selectedLine}
+        onLineSelect={onLineSelect}
       />
 
       {hasTests && (

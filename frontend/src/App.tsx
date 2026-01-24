@@ -9,12 +9,14 @@ import { useFileContent } from './hooks/useFileContent';
 import { useTests } from './hooks/useTests';
 import { useSuggestions } from './hooks/useSuggestions';
 import type { FileEntry } from './types';
+import { filterItemsByLine } from './utils/testUtils';
 
 type RightPanelTab = 'tests' | 'suggestions';
 
 function App() {
   const [currentPath, setCurrentPath] = useState('.');
   const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [highlightedTestIds, setHighlightedTestIds] = useState<Set<string>>(new Set());
   const [activeRightTab, setActiveRightTab] = useState<RightPanelTab>('tests');
 
@@ -36,9 +38,11 @@ function App() {
       // Navigate to directory
       setCurrentPath(fileEntry.path);
       setSelectedFilePath(null);
+      setSelectedLine(null);
     } else {
       // Select file
       setSelectedFilePath(fileEntry.path);
+      setSelectedLine(null);
     }
     // Clear highlighted tests when changing files
     setHighlightedTestIds(new Set());
@@ -48,6 +52,7 @@ function App() {
   const handlePathChange = (newPath: string) => {
     setCurrentPath(newPath);
     setSelectedFilePath(null);
+    setSelectedLine(null);
     setHighlightedTestIds(new Set());
   };
 
@@ -63,6 +68,28 @@ function App() {
       return newSet;
     });
   };
+
+  // Handle line selection for filtering
+  const handleLineSelect = (lineNum: number) => {
+    setSelectedLine(prev => {
+      if (prev === lineNum) {
+        // Deselect if same line clicked
+        return null;
+      }
+      return lineNum;
+    });
+  };
+
+  // Filter tests based on selected line
+  const filteredTests = selectedLine && file?.metadata?.tests
+    ? filterItemsByLine(tests, selectedLine, (test) => {
+      // Find matching test reference in file metadata to get covered lines
+      const testRef = file.metadata?.tests?.find(
+        ref => ref.testFile === test.testFile && ref.testName === test.testName
+      );
+      return testRef?.coveredLines;
+    })
+    : tests;
 
   const tabButtonStyle = (isActive: boolean): React.CSSProperties => ({
     padding: '8px 16px',
@@ -95,6 +122,8 @@ function App() {
           loading={fileLoading}
           error={fileError}
           onTestClick={handleTestClick}
+          selectedLine={selectedLine}
+          onLineSelect={handleLineSelect}
         />
       }
       right={
@@ -111,7 +140,7 @@ function App() {
               onClick={() => setActiveRightTab('tests')}
             >
               Tests
-              {tests.length > 0 && (
+              {filteredTests.length > 0 && (
                 <span style={{
                   marginLeft: '6px',
                   padding: '1px 6px',
@@ -120,7 +149,7 @@ function App() {
                   borderRadius: '10px',
                   fontSize: '11px',
                 }}>
-                  {tests.length}
+                  {filteredTests.length}
                 </span>
               )}
             </button>
@@ -149,7 +178,7 @@ function App() {
           <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)' }}>
             {activeRightTab === 'tests' && (
               <TestPanel
-                tests={tests}
+                tests={filteredTests}
                 loading={testsLoading}
                 error={testsError}
                 highlightedTestIds={highlightedTestIds}

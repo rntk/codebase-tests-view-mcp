@@ -8,6 +8,8 @@ interface CodeViewerProps {
   testReferences?: TestReference[];
   coverageDepth?: CoverageDepth;
   onLineClick?: (testId: string) => void;
+  selectedLine?: number | null;
+  onLineSelect?: (line: number) => void;
 }
 
 // Get heatmap color based on coverage intensity
@@ -52,7 +54,9 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
   filename,
   testReferences = [],
   coverageDepth = {},
-  onLineClick
+  onLineClick,
+  selectedLine,
+  onLineSelect
 }) => {
   const lines = content.split(/\r?\n/);
 
@@ -80,6 +84,11 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
   }, [coverageDepth]);
 
   const handleLineClick = (lineNum: number) => {
+    // Notify about line selection for filtering
+    if (onLineSelect) {
+      onLineSelect(lineNum);
+    }
+
     const tests = lineToTests.get(lineNum);
     if (tests && tests.length > 0 && onLineClick) {
       // Highlight all tests covering this line
@@ -131,15 +140,16 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
             const lineNum = index + 1;
             const tests = lineToTests.get(lineNum);
             const isHighlighted = tests && tests.length > 0;
+            const isSelected = selectedLine === lineNum;
             const coverageTests = coverageDepth[lineNum];
             const hasCoverage = coverageTests && coverageTests.length > 0;
 
             return (
               <div
                 key={lineNum}
-                onClick={() => isHighlighted && handleLineClick(lineNum)}
-                className={`code-line ${isHighlighted ? 'highlighted' : ''} ${hasCoverage && !isHighlighted ? 'covered' : ''}`}
-                title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to view.` : hasCoverage ? `Covered by ${coverageTests.length} test(s)` : undefined}
+                onClick={() => handleLineClick(lineNum)}
+                className={`code-line ${isHighlighted ? 'highlighted' : ''} ${hasCoverage && !isHighlighted ? 'covered' : ''} ${isSelected ? 'selected' : ''}`}
+                title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to filter/view.` : hasCoverage ? `Covered by ${coverageTests.length} test(s)` : undefined}
               >
                 {line === '' ? '\u00a0' : line}
               </div>
