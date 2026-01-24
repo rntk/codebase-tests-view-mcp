@@ -101,6 +101,17 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
 
   const hasCoverageData = maxDepth > 0;
 
+  // Scroll to selected line on mount or when selectedLine changes
+  const selectedLineRef = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (selectedLine && selectedLineRef.current) {
+      selectedLineRef.current.scrollIntoView({
+        behavior: 'smooth',
+        block: 'center',
+      });
+    }
+  }, [selectedLine, content]); // Also depend on content to ensure it's rendered
+
   return (
     <div className="code-viewer-container">
       <div className="code-viewer-header">
@@ -147,6 +158,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
             return (
               <div
                 key={lineNum}
+                ref={isSelected ? selectedLineRef : null}
                 onClick={() => handleLineClick(lineNum)}
                 className={`code-line ${isHighlighted ? 'highlighted' : ''} ${hasCoverage && !isHighlighted ? 'covered' : ''} ${isSelected ? 'selected' : ''}`}
                 title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to filter/view.` : hasCoverage ? `Covered by ${coverageTests.length} test(s)` : undefined}

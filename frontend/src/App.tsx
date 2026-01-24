@@ -23,7 +23,11 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     return params.get('file');
   });
-  const [selectedLine, setSelectedLine] = useState<number | null>(null);
+  const [selectedLine, setSelectedLine] = useState<number | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    const line = params.get('line');
+    return line ? parseInt(line, 10) : null;
+  });
   const [highlightedTestIds, setHighlightedTestIds] = useState<Set<string>>(new Set());
   const [activeRightTab, setActiveRightTab] = useState<RightPanelTab>('tests');
 
@@ -33,9 +37,11 @@ function App() {
       const params = new URLSearchParams(window.location.search);
       const urlPath = params.get('path') || '.';
       const urlFile = params.get('file');
+      const urlLine = params.get('line');
 
       setCurrentPath(urlPath);
       setSelectedFilePath(urlFile);
+      setSelectedLine(urlLine ? parseInt(urlLine, 10) : null);
     };
 
     window.addEventListener('popstate', handlePopState);
@@ -47,19 +53,24 @@ function App() {
     const params = new URLSearchParams(window.location.search);
     const urlPath = params.get('path') || '.';
     const urlFile = params.get('file');
+    const urlLine = params.get('line');
+    const stateLine = selectedLine?.toString() || null;
 
     // Only push if URL doesn't match state to avoid infinite loops and unnecessary history entries
-    if (urlPath !== currentPath || urlFile !== selectedFilePath) {
+    if (urlPath !== currentPath || urlFile !== selectedFilePath || urlLine !== stateLine) {
       const newParams = new URLSearchParams();
       newParams.set('path', currentPath);
       if (selectedFilePath) {
         newParams.set('file', selectedFilePath);
       }
+      if (selectedLine) {
+        newParams.set('line', selectedLine.toString());
+      }
 
       const newUrl = `${window.location.pathname}?${newParams.toString()}`;
       window.history.pushState(null, '', newUrl);
     }
-  }, [currentPath, selectedFilePath]);
+  }, [currentPath, selectedFilePath, selectedLine]);
 
   // Load files for current directory
   const { files, loading: filesLoading, error: filesError } = useFiles(currentPath);
