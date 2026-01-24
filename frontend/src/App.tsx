@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { ThreePanel } from './components/Layout/ThreePanel';
 import { FileList } from './components/FileExplorer/FileList';
 import { FilePreview } from './components/FilePreview/FilePreview';
@@ -14,11 +14,52 @@ import { filterItemsByLine } from './utils/testUtils';
 type RightPanelTab = 'tests' | 'suggestions';
 
 function App() {
-  const [currentPath, setCurrentPath] = useState('.');
-  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  // Initialize state from URL query parameters
+  const [currentPath, setCurrentPath] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('path') || '.';
+  });
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('file');
+  });
   const [selectedLine, setSelectedLine] = useState<number | null>(null);
   const [highlightedTestIds, setHighlightedTestIds] = useState<Set<string>>(new Set());
   const [activeRightTab, setActiveRightTab] = useState<RightPanelTab>('tests');
+
+  // Handle browser back/forward buttons
+  useEffect(() => {
+    const handlePopState = () => {
+      const params = new URLSearchParams(window.location.search);
+      const urlPath = params.get('path') || '.';
+      const urlFile = params.get('file');
+
+      setCurrentPath(urlPath);
+      setSelectedFilePath(urlFile);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Update URL when state changes
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const urlPath = params.get('path') || '.';
+    const urlFile = params.get('file');
+
+    // Only push if URL doesn't match state to avoid infinite loops and unnecessary history entries
+    if (urlPath !== currentPath || urlFile !== selectedFilePath) {
+      const newParams = new URLSearchParams();
+      newParams.set('path', currentPath);
+      if (selectedFilePath) {
+        newParams.set('file', selectedFilePath);
+      }
+
+      const newUrl = `${window.location.pathname}?${newParams.toString()}`;
+      window.history.pushState(null, '', newUrl);
+    }
+  }, [currentPath, selectedFilePath]);
 
   // Load files for current directory
   const { files, loading: filesLoading, error: filesError } = useFiles(currentPath);
