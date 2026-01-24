@@ -46,6 +46,7 @@ func GetPromptContent(name string, args map[string]string) ([]PromptMessage, err
    * The specific input data used in the test (line numbers in test file).
    * The expected result in the test (line numbers in test file).
    * A brief comment/description of what the test verifies.
+     - Every test must include a non-empty comment; do not omit it.
 
 When reporting the analysis, include **only** the following information for each test:
 

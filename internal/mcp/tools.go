@@ -31,7 +31,8 @@ func GetTools() []Tool {
 								},
 								"comment": {
 									"type": "string",
-									"description": "Brief description of what the test verifies"
+									"description": "Brief description of what the test verifies",
+									"minLength": 1
 								},
 								"lineRange": {
 									"type": "object",
@@ -68,7 +69,7 @@ func GetTools() []Tool {
 									}
 								}
 							},
-							"required": ["testFile", "testName", "lineRange", "coveredLines"]
+							"required": ["testFile", "testName", "comment", "lineRange", "coveredLines"]
 						}
 					}
 				},

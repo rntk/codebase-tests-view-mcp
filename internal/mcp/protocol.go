@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strings"
 
 	"codebase-view-mcp/internal/metadata"
 )
@@ -261,6 +262,11 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 	var tests []metadata.TestReference
 	if err := json.Unmarshal(testsJSON, &tests); err != nil {
 		return nil, fmt.Errorf("invalid tests format: %w", err)
+	}
+	for i, test := range tests {
+		if strings.TrimSpace(test.Comment) == "" {
+			return nil, fmt.Errorf("comment is required for test %d (%s)", i, test.TestName)
+		}
 	}
 
 	// Store metadata (merge with existing tests)
