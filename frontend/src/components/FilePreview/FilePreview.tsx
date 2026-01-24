@@ -12,6 +12,7 @@ interface FilePreviewProps {
   onTestClick?: (testId: string) => void;
   selectedLine?: number | null;
   onLineSelect?: (line: number) => void;
+  onResetLineFilter?: () => void;
 }
 
 export const FilePreview: React.FC<FilePreviewProps> = ({
@@ -21,6 +22,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   onTestClick,
   selectedLine,
   onLineSelect,
+  onResetLineFilter,
 }) => {
   if (loading) {
     return <div>Loading file...</div>;
@@ -81,9 +83,30 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
       {hasTests && (
         <div style={{ marginTop: '24px' }}>
-          <h3 style={{ marginBottom: '16px', fontSize: '16px' }}>
-            Test Coverage
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px' }}>
+              Test Coverage
+            </h3>
+            {selectedLine !== null && selectedLine !== undefined && onResetLineFilter && (
+              <button
+                type="button"
+                onClick={onResetLineFilter}
+                style={{
+                  padding: '6px 10px',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: 'var(--radius-sm)',
+                  backgroundColor: 'var(--bg-primary)',
+                  color: 'var(--text-secondary)',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  transition: 'all 0.15s ease',
+                }}
+                title="Clear line filter and show all functions"
+              >
+                Show all functions
+              </button>
+            )}
+          </div>
           <MindMap data={mindMapData} onNodeClick={onTestClick} />
         </div>
       )}

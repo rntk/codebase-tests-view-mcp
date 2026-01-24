@@ -132,6 +132,10 @@ function App() {
     });
   };
 
+  const handleResetLineFilter = () => {
+    setSelectedLine(null);
+  };
+
   // Filter tests based on selected line
   const filteredTests = selectedLine && file?.metadata?.tests
     ? filterItemsByLine(tests, selectedLine, (test) => {
@@ -176,6 +180,7 @@ function App() {
           onTestClick={handleTestClick}
           selectedLine={selectedLine}
           onLineSelect={handleLineSelect}
+          onResetLineFilter={handleResetLineFilter}
         />
       }
       right={
