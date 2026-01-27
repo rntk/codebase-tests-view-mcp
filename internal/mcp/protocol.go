@@ -270,6 +270,18 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 		if strings.TrimSpace(test.Comment) == "" {
 			return nil, fmt.Errorf("comment is required for test %d (%s)", i, test.TestName)
 		}
+		if err := validateRequiredLineRange("lineRange", test.LineRange); err != nil {
+			return nil, fmt.Errorf("%s for test %d (%s): %w", "lineRange", i, test.TestName, err)
+		}
+		if err := validateRequiredLineRange("coveredLines", test.CoveredLines); err != nil {
+			return nil, fmt.Errorf("%s for test %d (%s): %w", "coveredLines", i, test.TestName, err)
+		}
+		if err := validateOptionalLineRange("inputLines", test.InputLines); err != nil {
+			return nil, fmt.Errorf("%s for test %d (%s): %w", "inputLines", i, test.TestName, err)
+		}
+		if err := validateOptionalLineRange("outputLines", test.OutputLines); err != nil {
+			return nil, fmt.Errorf("%s for test %d (%s): %w", "outputLines", i, test.TestName, err)
+		}
 	}
 
 	// Store metadata (merge with existing tests)
@@ -285,6 +297,32 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 			},
 		},
 	}, nil
+}
+
+func validateRequiredLineRange(field string, lineRange metadata.LineRange) error {
+	if lineRange.Start == 0 && lineRange.End == 0 {
+		return fmt.Errorf("%s must be non-zero", field)
+	}
+	if lineRange.Start < 1 || lineRange.End < 1 {
+		return fmt.Errorf("%s must use 1-based line numbers", field)
+	}
+	if lineRange.Start > lineRange.End {
+		return fmt.Errorf("%s start must be <= end", field)
+	}
+	return nil
+}
+
+func validateOptionalLineRange(field string, lineRange metadata.LineRange) error {
+	if lineRange.Start == 0 && lineRange.End == 0 {
+		return nil
+	}
+	if lineRange.Start < 1 || lineRange.End < 1 {
+		return fmt.Errorf("%s must use 1-based line numbers", field)
+	}
+	if lineRange.Start > lineRange.End {
+		return fmt.Errorf("%s start must be <= end", field)
+	}
+	return nil
 }
 
 // executeSuggestMissingTests executes the suggest-missing-tests tool
