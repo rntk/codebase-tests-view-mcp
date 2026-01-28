@@ -5,6 +5,10 @@ import (
 	"log"
 	"os"
 	"sync"
+	"time"
+
+	"codebase-view-mcp/internal/files"
+	"github.com/google/uuid"
 )
 
 // Store manages test metadata storage
@@ -198,4 +202,130 @@ func (s *Store) GetSuggestions(filePath string) []TestSuggestion {
 	}
 
 	return meta.Suggestions
+}
+
+// ==================== COMMENT METHODS ====================
+
+// AddComment adds a new comment to a file
+func (s *Store) AddComment(filePath string, comment files.Comment) (files.Comment, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	// Generate ID if not provided
+	if comment.ID == "" {
+		comment.ID = uuid.New().String()
+	}
+
+	now := time.Now()
+	comment.CreatedAt = now
+	comment.UpdatedAt = now
+
+	existing := s.metadata[filePath]
+	if existing == nil {
+		// No existing metadata, create new
+		s.metadata[filePath] = &FileMetadata{
+			Comments: []files.Comment{comment},
+		}
+	} else {
+		// Append to existing comments
+		s.metadata[filePath].Comments = append(existing.Comments, comment)
+	}
+
+	if s.filePath != "" {
+		if err := s.saveUnsafe(); err != nil {
+			return comment, err
+		}
+	}
+
+	return comment, nil
+}
+
+// UpdateComment updates an existing comment's content
+func (s *Store) UpdateComment(filePath string, commentID string, content string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing := s.metadata[filePath]
+	if existing == nil {
+		return nil // No metadata for this file
+	}
+
+	for i, comment := range existing.Comments {
+		if comment.ID == commentID {
+			s.metadata[filePath].Comments[i].Content = content
+			s.metadata[filePath].Comments[i].UpdatedAt = time.Now()
+			break
+		}
+	}
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
+}
+
+// DeleteComment removes a comment from a file
+func (s *Store) DeleteComment(filePath string, commentID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing := s.metadata[filePath]
+	if existing == nil {
+		return nil // No metadata for this file
+	}
+
+	// Filter out the comment to delete
+	filtered := make([]files.Comment, 0, len(existing.Comments))
+	for _, comment := range existing.Comments {
+		if comment.ID != commentID {
+			filtered = append(filtered, comment)
+		}
+	}
+
+	s.metadata[filePath].Comments = filtered
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
+}
+
+// GetComments retrieves all comments for a file
+func (s *Store) GetComments(filePath string) []files.Comment {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	meta := s.metadata[filePath]
+	if meta == nil {
+		return nil
+	}
+
+	return meta.Comments
+}
+
+// ToggleCommentResolved toggles the resolved status of a comment
+func (s *Store) ToggleCommentResolved(filePath string, commentID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing := s.metadata[filePath]
+	if existing == nil {
+		return nil // No metadata for this file
+	}
+
+	for i, comment := range existing.Comments {
+		if comment.ID == commentID {
+			s.metadata[filePath].Comments[i].Resolved = !comment.Resolved
+			s.metadata[filePath].Comments[i].UpdatedAt = time.Now()
+			break
+		}
+	}
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
 }

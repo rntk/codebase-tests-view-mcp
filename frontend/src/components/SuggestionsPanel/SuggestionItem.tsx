@@ -88,7 +88,7 @@ export const SuggestionItem: React.FC<SuggestionItemProps> = ({ suggestion }) =>
         style={{
           border: 'none',
           background: 'none',
-          color: 'var(--primary)',
+          color: 'var(--accent-primary)',
           fontSize: '12px',
           cursor: 'pointer',
           padding: 0,

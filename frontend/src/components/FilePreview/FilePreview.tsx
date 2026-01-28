@@ -1,7 +1,7 @@
 import React from 'react';
 import { CodeViewer } from './CodeViewer';
 import { MindMap } from '../MindMap/MindMap';
-import type { FileContent, MindMapNode } from '../../types';
+import type { FileContent, MindMapNode, Comment } from '../../types';
 
 import { filterItemsByLine } from '../../utils/testUtils';
 
@@ -12,7 +12,9 @@ interface FilePreviewProps {
   onTestClick?: (testId: string) => void;
   selectedLine?: number | null;
   onLineSelect?: (line: number) => void;
+  onLineDoubleClick?: (line: number) => void;
   onResetLineFilter?: () => void;
+  comments?: Comment[];
 }
 
 export const FilePreview: React.FC<FilePreviewProps> = ({
@@ -22,7 +24,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   onTestClick,
   selectedLine,
   onLineSelect,
+  onLineDoubleClick,
   onResetLineFilter,
+  comments = [],
 }) => {
   if (loading) {
     return <div>Loading file...</div>;
@@ -76,9 +80,11 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         filename={file.name}
         testReferences={file.metadata?.tests ?? []}
         coverageDepth={file.coverageDepth}
+        comments={comments}
         onLineClick={onTestClick}
         selectedLine={selectedLine}
         onLineSelect={onLineSelect}
+        onLineDoubleClick={onLineDoubleClick}
       />
 
       {hasTests && (

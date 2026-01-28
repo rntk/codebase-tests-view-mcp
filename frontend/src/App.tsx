@@ -4,14 +4,18 @@ import { FileList } from './components/FileExplorer/FileList';
 import { FilePreview } from './components/FilePreview/FilePreview';
 import { TestPanel } from './components/TestPanel/TestPanel';
 import { SuggestionsPanel } from './components/SuggestionsPanel/SuggestionsPanel';
+import { CommentPanel } from './components/CommentPanel';
+import { ExportModal } from './components/ExportModal';
 import { useFiles } from './hooks/useFiles';
 import { useFileContent } from './hooks/useFileContent';
 import { useTests } from './hooks/useTests';
 import { useSuggestions } from './hooks/useSuggestions';
+import { useComments } from './hooks/useComments';
+import { useExport } from './hooks/useExport';
 import type { FileEntry } from './types';
 import { filterItemsByLine } from './utils/testUtils';
 
-type RightPanelTab = 'tests' | 'suggestions';
+type RightPanelTab = 'tests' | 'suggestions' | 'comments';
 
 function App() {
   // Initialize state from URL query parameters
@@ -30,6 +34,7 @@ function App() {
   });
   const [highlightedTestIds, setHighlightedTestIds] = useState<Set<string>>(new Set());
   const [activeRightTab, setActiveRightTab] = useState<RightPanelTab>('tests');
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -84,6 +89,20 @@ function App() {
   // Load suggestions for selected file
   const { suggestions, loading: suggestionsLoading, error: suggestionsError } = useSuggestions(selectedFilePath);
 
+  // Load comments for selected file
+  const {
+    comments,
+    loading: commentsLoading,
+    error: commentsError,
+    addComment,
+    editComment,
+    removeComment,
+    toggleResolved,
+  } = useComments(selectedFilePath);
+
+  // Export functionality
+  const { exportData, loading: exportLoading, performExport, clearExport } = useExport();
+
   // Handle file/directory click
   const handleFileClick = (fileEntry: FileEntry) => {
     if (fileEntry.isDir) {
@@ -132,8 +151,35 @@ function App() {
     });
   };
 
+  // Handle line double click for adding comments
+  const handleLineDoubleClick = (lineNum: number) => {
+    setSelectedLine(lineNum);
+    setActiveRightTab('comments');
+  };
+
   const handleResetLineFilter = () => {
     setSelectedLine(null);
+  };
+
+  // Handle export for AI
+  const handleExportForAI = async () => {
+    if (!selectedFilePath) return;
+    
+    setIsExportModalOpen(true);
+    try {
+      await performExport(selectedFilePath, {
+        includeTests: true,
+        includeSuggestions: true,
+        contextLines: 5,
+      });
+    } catch (err) {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleCloseExportModal = () => {
+    setIsExportModalOpen(false);
+    clearExport();
   };
 
   // Filter tests based on selected line
@@ -150,108 +196,155 @@ function App() {
   const tabButtonStyle = (isActive: boolean): React.CSSProperties => ({
     padding: '8px 16px',
     border: 'none',
-    borderBottom: isActive ? '2px solid var(--primary)' : '2px solid transparent',
+    borderBottom: isActive ? '2px solid var(--accent-primary)' : '2px solid transparent',
     backgroundColor: 'transparent',
-    color: isActive ? 'var(--primary)' : 'var(--text-secondary)',
+    color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
     cursor: 'pointer',
     fontSize: '13px',
     fontWeight: isActive ? '600' : '500',
     transition: 'all 0.15s ease',
   });
 
-  return (
-    <ThreePanel
-      left={
-        <FileList
-          path={currentPath}
-          files={files}
-          selectedPath={selectedFilePath}
-          loading={filesLoading}
-          error={filesError}
-          onPathChange={handlePathChange}
-          onFileClick={handleFileClick}
-        />
-      }
-      center={
-        <FilePreview
-          file={file}
-          loading={fileLoading}
-          error={fileError}
-          onTestClick={handleTestClick}
-          selectedLine={selectedLine}
-          onLineSelect={handleLineSelect}
-          onResetLineFilter={handleResetLineFilter}
-        />
-      }
-      right={
-        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-          {/* Tab buttons */}
-          <div style={{
-            display: 'flex',
-            borderBottom: '1px solid var(--border-color)',
-            backgroundColor: 'var(--bg-secondary)',
-          }}>
-            <button
-              type="button"
-              style={tabButtonStyle(activeRightTab === 'tests')}
-              onClick={() => setActiveRightTab('tests')}
-            >
-              Tests
-              {filteredTests.length > 0 && (
-                <span style={{
-                  marginLeft: '6px',
-                  padding: '1px 6px',
-                  backgroundColor: activeRightTab === 'tests' ? 'var(--primary)' : 'var(--bg-tertiary)',
-                  color: activeRightTab === 'tests' ? 'white' : 'var(--text-tertiary)',
-                  borderRadius: '10px',
-                  fontSize: '11px',
-                }}>
-                  {filteredTests.length}
-                </span>
-              )}
-            </button>
-            <button
-              type="button"
-              style={tabButtonStyle(activeRightTab === 'suggestions')}
-              onClick={() => setActiveRightTab('suggestions')}
-            >
-              Suggestions
-              {suggestions.length > 0 && (
-                <span style={{
-                  marginLeft: '6px',
-                  padding: '1px 6px',
-                  backgroundColor: activeRightTab === 'suggestions' ? 'var(--primary)' : 'var(--bg-tertiary)',
-                  color: activeRightTab === 'suggestions' ? 'white' : 'var(--text-tertiary)',
-                  borderRadius: '10px',
-                  fontSize: '11px',
-                }}>
-                  {suggestions.length}
-                </span>
-              )}
-            </button>
-          </div>
+  const unresolvedCount = comments.filter(c => !c.resolved).length;
 
-          {/* Tab content */}
-          <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)' }}>
-            {activeRightTab === 'tests' && (
-              <TestPanel
-                tests={filteredTests}
-                loading={testsLoading}
-                error={testsError}
-                highlightedTestIds={highlightedTestIds}
-              />
-            )}
-            {activeRightTab === 'suggestions' && (
-              <SuggestionsPanel
-                suggestions={suggestions}
-                loading={suggestionsLoading}
-                error={suggestionsError}
-              />
-            )}
+  return (
+    <>
+      <ThreePanel
+        left={
+          <FileList
+            path={currentPath}
+            files={files}
+            selectedPath={selectedFilePath}
+            loading={filesLoading}
+            error={filesError}
+            onPathChange={handlePathChange}
+            onFileClick={handleFileClick}
+          />
+        }
+        center={
+          <FilePreview
+            file={file}
+            loading={fileLoading}
+            error={fileError}
+            onTestClick={handleTestClick}
+            selectedLine={selectedLine}
+            onLineSelect={handleLineSelect}
+            onLineDoubleClick={handleLineDoubleClick}
+            onResetLineFilter={handleResetLineFilter}
+            comments={comments}
+          />
+        }
+        right={
+          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+            {/* Tab buttons */}
+            <div style={{
+              display: 'flex',
+              borderBottom: '1px solid var(--border-color)',
+              backgroundColor: 'var(--bg-secondary)',
+            }}>
+              <button
+                type="button"
+                style={tabButtonStyle(activeRightTab === 'tests')}
+                onClick={() => setActiveRightTab('tests')}
+              >
+                Tests
+                {filteredTests.length > 0 && (
+                  <span style={{
+                    marginLeft: '6px',
+                    padding: '1px 6px',
+                    backgroundColor: activeRightTab === 'tests' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                    color: activeRightTab === 'tests' ? 'white' : 'var(--text-tertiary)',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                  }}>
+                    {filteredTests.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                style={tabButtonStyle(activeRightTab === 'suggestions')}
+                onClick={() => setActiveRightTab('suggestions')}
+              >
+                Suggestions
+                {suggestions.length > 0 && (
+                  <span style={{
+                    marginLeft: '6px',
+                    padding: '1px 6px',
+                    backgroundColor: activeRightTab === 'suggestions' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
+                    color: activeRightTab === 'suggestions' ? 'white' : 'var(--text-tertiary)',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                  }}>
+                    {suggestions.length}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                style={tabButtonStyle(activeRightTab === 'comments')}
+                onClick={() => setActiveRightTab('comments')}
+              >
+                Comments
+                {unresolvedCount > 0 && (
+                  <span style={{
+                    marginLeft: '6px',
+                    padding: '1px 6px',
+                    backgroundColor: activeRightTab === 'comments' ? 'var(--warning)' : 'var(--bg-tertiary)',
+                    color: activeRightTab === 'comments' ? 'white' : 'var(--text-tertiary)',
+                    borderRadius: '10px',
+                    fontSize: '11px',
+                  }}>
+                    {unresolvedCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Tab content */}
+            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)' }}>
+              {activeRightTab === 'tests' && (
+                <TestPanel
+                  tests={filteredTests}
+                  loading={testsLoading}
+                  error={testsError}
+                  highlightedTestIds={highlightedTestIds}
+                />
+              )}
+              {activeRightTab === 'suggestions' && (
+                <SuggestionsPanel
+                  suggestions={suggestions}
+                  loading={suggestionsLoading}
+                  error={suggestionsError}
+                />
+              )}
+              {activeRightTab === 'comments' && (
+                <CommentPanel
+                  comments={comments}
+                  loading={commentsLoading}
+                  error={commentsError}
+                  selectedLine={selectedLine}
+                  filePath={selectedFilePath}
+                  fileContent={file?.content ?? null}
+                  onAddComment={addComment}
+                  onUpdateComment={editComment}
+                  onDeleteComment={removeComment}
+                  onToggleResolved={toggleResolved}
+                  onExportForAI={handleExportForAI}
+                />
+              )}
+            </div>
           </div>
-        </div>
-      }
-    />
+        }
+      />
+
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={handleCloseExportModal}
+        exportData={exportData}
+        loading={exportLoading}
+      />
+    </>
   );
 }
 

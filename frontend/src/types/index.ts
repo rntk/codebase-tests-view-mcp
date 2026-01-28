@@ -11,6 +11,17 @@ export interface LineRange {
   end: number;
 }
 
+export interface Comment {
+  id: string;
+  line: number;
+  content: string;
+  author?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolved: boolean;
+  contextLines?: LineRange;
+}
+
 export interface TestReference {
   functionName: string;
   testFile: string;
@@ -25,6 +36,7 @@ export interface TestReference {
 export interface FileMetadata {
   tests?: TestReference[];
   suggestions?: TestSuggestion[];
+  comments?: Comment[];
 }
 
 export interface TestSuggestion {
@@ -98,4 +110,40 @@ export interface MindMapTransform {
   x: number;
   y: number;
   scale: number;
+}
+
+// Comment-related types
+export interface CommentRequest {
+  line: number;
+  content: string;
+  contextLines?: LineRange;
+}
+
+export interface CommentResponse {
+  comment: Comment;
+}
+
+export interface CommentsResponse {
+  sourceFile: string;
+  comments: Comment[];
+}
+
+export interface CodeContextBlock {
+  lineRange: LineRange;
+  code: string;
+  comments: Comment[];
+}
+
+export interface ExportContextRequest {
+  includeTests: boolean;
+  includeSuggestions: boolean;
+  contextLines: number;
+}
+
+export interface ExportContextResponse {
+  sourceFile: string;
+  codeContext: CodeContextBlock[];
+  tests?: TestDetail[];
+  suggestions?: TestSuggestion[];
+  formatted: string;
 }

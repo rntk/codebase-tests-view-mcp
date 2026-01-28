@@ -13,20 +13,34 @@ type FileEntry struct {
 
 // FileContent represents file content with metadata
 type FileContent struct {
-	Path          string              `json:"path"`
-	Name          string              `json:"name"`
-	Content       string              `json:"content"`
-	Size          int64               `json:"size"`
-	ModTime       time.Time           `json:"modTime"`
-	MimeType      string              `json:"mimeType"`
-	Metadata      *FileMetadata       `json:"metadata,omitempty"`
-	CoverageDepth map[int][]string    `json:"coverageDepth,omitempty"` // line number -> list of test names
+	Path          string           `json:"path"`
+	Name          string           `json:"name"`
+	Content       string           `json:"content"`
+	Size          int64            `json:"size"`
+	ModTime       time.Time        `json:"modTime"`
+	MimeType      string           `json:"mimeType"`
+	Metadata      *FileMetadata    `json:"metadata,omitempty"`
+	CoverageDepth map[int][]string `json:"coverageDepth,omitempty"` // line number -> list of test names
+}
+
+// Comment represents an inline comment on a specific line of code
+type Comment struct {
+	ID        string    `json:"id"`
+	Line      int       `json:"line"`
+	Content   string    `json:"content"`
+	Author    string    `json:"author,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
+	Resolved  bool      `json:"resolved"`
+	// ContextLines stores surrounding lines for AI agent context
+	ContextLines LineRange `json:"contextLines,omitempty"`
 }
 
 // FileMetadata contains test-related metadata for a file
 type FileMetadata struct {
 	Tests       []TestReference  `json:"tests,omitempty"`
 	Suggestions []TestSuggestion `json:"suggestions,omitempty"`
+	Comments    []Comment        `json:"comments,omitempty"`
 }
 
 // TestReference links a source file to its tests
@@ -60,7 +74,7 @@ type FileResponse struct {
 
 // TestDetail contains full test information
 type TestDetail struct {
-	FunctionName  string    `json:"functionName"`
+	FunctionName   string    `json:"functionName"`
 	TestFile       string    `json:"testFile"`
 	TestName       string    `json:"testName"`
 	Comment        string    `json:"comment,omitempty"`
@@ -94,4 +108,45 @@ type TestSuggestion struct {
 type SuggestionsResponse struct {
 	SourceFile  string           `json:"sourceFile"`
 	Suggestions []TestSuggestion `json:"suggestions"`
+}
+
+// CommentRequest for creating/updating a comment
+type CommentRequest struct {
+	Line         int       `json:"line"`
+	Content      string    `json:"content"`
+	ContextLines LineRange `json:"contextLines,omitempty"`
+}
+
+// CommentResponse for single comment operations
+type CommentResponse struct {
+	Comment Comment `json:"comment"`
+}
+
+// CommentsResponse for listing comments
+type CommentsResponse struct {
+	SourceFile string    `json:"sourceFile"`
+	Comments   []Comment `json:"comments"`
+}
+
+// ExportContextRequest for exporting code with comments for AI agents
+type ExportContextRequest struct {
+	IncludeTests       bool `json:"includeTests"`
+	IncludeSuggestions bool `json:"includeSuggestions"`
+	ContextLines       int  `json:"contextLines"` // lines of context around commented lines
+}
+
+// ExportContextResponse contains formatted data for AI agents
+type ExportContextResponse struct {
+	SourceFile  string             `json:"sourceFile"`
+	CodeContext []CodeContextBlock `json:"codeContext"`
+	Tests       []TestDetail       `json:"tests,omitempty"`
+	Suggestions []TestSuggestion   `json:"suggestions,omitempty"`
+	Formatted   string             `json:"formatted"` // ready-to-copy format
+}
+
+// CodeContextBlock represents a code section with its comments
+type CodeContextBlock struct {
+	LineRange LineRange `json:"lineRange"`
+	Code      string    `json:"code"`
+	Comments  []Comment `json:"comments"`
 }

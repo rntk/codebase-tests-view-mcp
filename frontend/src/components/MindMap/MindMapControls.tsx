@@ -32,9 +32,9 @@ const buttonStyle: React.CSSProperties = {
 
 const activeButtonStyle: React.CSSProperties = {
   ...buttonStyle,
-  backgroundColor: 'var(--primary)',
+  backgroundColor: 'var(--accent-primary)',
   color: 'white',
-  borderColor: 'var(--primary)',
+  borderColor: 'var(--accent-primary)',
 };
 
 export const MindMapControls: React.FC<MindMapControlsProps> = ({
