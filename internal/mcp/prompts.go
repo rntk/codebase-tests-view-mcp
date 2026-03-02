@@ -39,6 +39,8 @@ func GetPromptContent(name string, args map[string]string) ([]PromptMessage, err
 
 		promptText := fmt.Sprintf(`Please analyze the **%s** function in file **%s**.
 
+**FIRST**: Read the source file and any related test files using ` + "`cat -n %s`" + ` (or equivalent) so that every line is prefixed with its line number. This ensures accurate line references in your analysis.
+
 1. Examine the function's implementation.
 2. If the function has associated tests, use the **submit-test-metadata** tool to submit metadata.
 3. For each test, identify:
@@ -82,7 +84,7 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
 - "lineRange" refers to the lines in the TEST file where the test code is located
 - "functionName" must be the source function name from this prompt (not the test name)
 - "coveredLines" refers to the lines in the SOURCE file (%s) that this test covers
-- "inputLines" and "outputLines" refer to lines in the TEST file`, functionName, filePath, filePath, functionName, filePath)
+- "inputLines" and "outputLines" refer to lines in the TEST file`, functionName, filePath, filePath, filePath, functionName, filePath)
 
 		return []PromptMessage{
 			{
