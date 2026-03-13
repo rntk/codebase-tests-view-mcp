@@ -21,6 +21,22 @@ func GetPrompts() []Prompt {
 				},
 			},
 		},
+		{
+			Name:        "test-to-source-review",
+			Description: "Analyze a test and trace it back to the source code it covers, then submit metadata using the submit-test-metadata tool",
+			Arguments: []PromptArgument{
+				{
+					Name:        "testName",
+					Description: "The name of the test function to analyze",
+					Required:    true,
+				},
+				{
+					Name:        "testFilePath",
+					Description: "Path to the test file containing the test",
+					Required:    true,
+				},
+			},
+		},
 	}
 }
 
@@ -85,6 +101,68 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
 - "functionName" must be the source function name from this prompt (not the test name)
 - "coveredLines" refers to the lines in the SOURCE file (%s) that this test covers
 - "inputLines" and "outputLines" refer to lines in the TEST file`, functionName, filePath, filePath, filePath, functionName, filePath)
+
+		return []PromptMessage{
+			{
+				Role: "user",
+				Content: TextContent{
+					Type: "text",
+					Text: promptText,
+				},
+			},
+		}, nil
+	}
+
+	if name == "test-to-source-review" {
+		testName := args["testName"]
+		testFilePath := args["testFilePath"]
+
+		if testName == "" {
+			return nil, fmt.Errorf("testName argument is required")
+		}
+		if testFilePath == "" {
+			return nil, fmt.Errorf("testFilePath argument is required")
+		}
+
+		promptText := fmt.Sprintf(`Please analyze the test **%s** in file **%s**.
+
+**FIRST**: Read the test file using `+"`cat -n %s`"+` (or equivalent) so that every line is prefixed with its line number. This ensures accurate line references.
+
+1. Find the test **%s** and examine what it does.
+2. Identify which source file and function it is testing — read that source file too, using `+"`cat -n`"+` with line numbers.
+3. Use the **submit-test-metadata** tool to submit metadata about the relationship.
+
+For the test, identify:
+* Which source function it exercises (the function name in the source file).
+* Which lines in the source file the test covers (coveredLines).
+* The specific input data used in the test (inputLines — line numbers in the TEST file).
+* The expected result in the test (outputLines — line numbers in the TEST file).
+* A brief comment/description of what the test verifies (required, non-empty).
+* The line range of the test itself (lineRange — line numbers in the TEST file).
+
+Use the **submit-test-metadata** tool with the following structure:
+
+{
+  "sourceFile": "path/to/source_file.go",
+  "tests": [
+    {
+      "testFile": "%s",
+      "functionName": "SourceFunctionName",
+      "testName": "%s",
+      "comment": "Brief description of what the test verifies",
+      "lineRange": {"start": 10, "end": 25},
+      "coveredLines": {"start": 45, "end": 60},
+      "inputLines": {"start": 12, "end": 15},
+      "outputLines": {"start": 20, "end": 22}
+    }
+  ]
+}
+
+**IMPORTANT**:
+- "lineRange" refers to the lines in the TEST file (%s) where the test code is located
+- "functionName" must be the source function name (not the test name)
+- "coveredLines" refers to the lines in the SOURCE file that this test covers
+- "inputLines" and "outputLines" refer to lines in the TEST file`, testName, testFilePath, testFilePath, testName, testFilePath, testName, testFilePath)
 
 		return []PromptMessage{
 			{

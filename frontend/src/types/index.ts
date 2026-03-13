@@ -97,6 +97,22 @@ export interface TestsResponse {
   tests: TestDetail[];
 }
 
+export interface SourceReference {
+  sourceFile: string;
+  functionName: string;
+  coveredLines: LineRange;
+  testName: string;
+  comment?: string;
+  lineRange: LineRange;
+  inputLines?: LineRange;
+  outputLines?: LineRange;
+}
+
+export interface TestFileResponse {
+  testFile: string;
+  sources: SourceReference[];
+}
+
 export interface MindMapNode {
   id: string;
   label: string;

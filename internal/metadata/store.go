@@ -98,6 +98,34 @@ func (s *Store) GetTestMetadata(filePath string) *FileMetadata {
 	return s.metadata[filePath]
 }
 
+// GetTestFileMetadata performs a reverse lookup: given a test file path, returns all source references
+func (s *Store) GetTestFileMetadata(testFilePath string) []files.SourceReference {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	var refs []files.SourceReference
+	for sourceFile, meta := range s.metadata {
+		if meta == nil {
+			continue
+		}
+		for _, test := range meta.Tests {
+			if test.TestFile == testFilePath {
+				refs = append(refs, files.SourceReference{
+					SourceFile:   sourceFile,
+					FunctionName: test.FunctionName,
+					CoveredLines: test.CoveredLines,
+					TestName:     test.TestName,
+					Comment:      test.Comment,
+					LineRange:    test.LineRange,
+					InputLines:   test.InputLines,
+					OutputLines:  test.OutputLines,
+				})
+			}
+		}
+	}
+	return refs
+}
+
 // GetAllMetadata returns all stored metadata
 func (s *Store) GetAllMetadata() map[string]*FileMetadata {
 	s.mu.RLock()

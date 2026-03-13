@@ -12,6 +12,7 @@ import { useTests } from './hooks/useTests';
 import { useSuggestions } from './hooks/useSuggestions';
 import { useComments } from './hooks/useComments';
 import { useExport } from './hooks/useExport';
+import { useSources } from './hooks/useSources';
 import type { FileEntry } from './types';
 import { filterItemsByLine } from './utils/testUtils';
 
@@ -100,6 +101,9 @@ function App() {
     toggleResolved,
   } = useComments(selectedFilePath);
 
+  // Load source references for test files (reverse lookup)
+  const { sources: sourceReferences } = useSources(selectedFilePath);
+
   // Export functionality
   const { exportData, loading: exportLoading, performExport, clearExport } = useExport();
 
@@ -159,6 +163,13 @@ function App() {
 
   const handleResetLineFilter = () => {
     setSelectedLine(null);
+  };
+
+  // Handle click on a source reference line in a test file: navigate to source file at the covered line
+  const handleSourceRefClick = (sourceFile: string, line: number) => {
+    setSelectedFilePath(sourceFile);
+    setSelectedLine(line);
+    setHighlightedTestIds(new Set());
   };
 
   // Handle export for AI
@@ -227,6 +238,8 @@ function App() {
             loading={fileLoading}
             error={fileError}
             onTestClick={handleTestClick}
+            sourceReferences={sourceReferences}
+            onSourceRefClick={handleSourceRefClick}
             selectedLine={selectedLine}
             onLineSelect={handleLineSelect}
             onLineDoubleClick={handleLineDoubleClick}

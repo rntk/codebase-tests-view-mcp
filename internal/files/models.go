@@ -110,6 +110,24 @@ type SuggestionsResponse struct {
 	Suggestions []TestSuggestion `json:"suggestions"`
 }
 
+// SourceReference represents a source function referenced by a test
+type SourceReference struct {
+	SourceFile   string    `json:"sourceFile"`
+	FunctionName string    `json:"functionName"`
+	CoveredLines LineRange `json:"coveredLines"`
+	TestName     string    `json:"testName"`
+	Comment      string    `json:"comment,omitempty"`
+	LineRange    LineRange `json:"lineRange"`
+	InputLines   LineRange `json:"inputLines,omitempty"`
+	OutputLines  LineRange `json:"outputLines,omitempty"`
+}
+
+// TestFileResponse for GET /api/files/{path}/sources
+type TestFileResponse struct {
+	TestFile string            `json:"testFile"`
+	Sources  []SourceReference `json:"sources"`
+}
+
 // CommentRequest for creating/updating a comment
 type CommentRequest struct {
 	Line         int       `json:"line"`

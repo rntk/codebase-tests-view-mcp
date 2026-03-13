@@ -1,8 +1,9 @@
-import type { 
-  ListFilesResponse, 
-  FileResponse, 
-  TestsResponse, 
+import type {
+  ListFilesResponse,
+  FileResponse,
+  TestsResponse,
   SuggestionsResponse,
+  TestFileResponse,
   CommentsResponse,
   CommentResponse,
   CommentRequest,
@@ -40,6 +41,14 @@ export async function getSuggestions(path: string): Promise<SuggestionsResponse>
   const response = await fetch(`${API_BASE}/files/${encodeURIComponent(path)}/suggestions`);
   if (!response.ok) {
     throw new Error(`Failed to get suggestions: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function getSourceReferences(path: string): Promise<TestFileResponse> {
+  const response = await fetch(`${API_BASE}/files/${encodeURIComponent(path)}/sources`);
+  if (!response.ok) {
+    throw new Error(`Failed to get source references: ${response.statusText}`);
   }
   return response.json();
 }

@@ -160,6 +160,31 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// GetSources handles GET /api/files/{path}/sources (reverse lookup: test file → source references)
+func (h *Handler) GetSources(w http.ResponseWriter, r *http.Request) {
+	path := r.PathValue("path")
+	if path == "" {
+		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+
+	sources := h.metaStore.GetTestFileMetadata(path)
+	if sources == nil {
+		sources = []files.SourceReference{}
+	}
+
+	response := files.TestFileResponse{
+		TestFile: path,
+		Sources:  sources,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
 // GetSuggestions handles GET /api/files/{path}/suggestions
 func (h *Handler) GetSuggestions(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")

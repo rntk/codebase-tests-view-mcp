@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import './CodeViewer.css';
-import type { TestReference, CoverageDepth, Comment } from '../../types';
+import type { TestReference, CoverageDepth, Comment, SourceReference } from '../../types';
 
 interface CodeViewerProps {
   content: string;
@@ -8,7 +8,9 @@ interface CodeViewerProps {
   testReferences?: TestReference[];
   coverageDepth?: CoverageDepth;
   comments?: Comment[];
+  sourceReferences?: SourceReference[];
   onLineClick?: (testId: string) => void;
+  onSourceRefClick?: (sourceFile: string, line: number) => void;
   selectedLine?: number | null;
   onLineSelect?: (line: number) => void;
   onLineDoubleClick?: (line: number) => void;
@@ -57,7 +59,9 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
   testReferences = [],
   coverageDepth = {},
   comments = [],
+  sourceReferences = [],
   onLineClick,
+  onSourceRefClick,
   selectedLine,
   onLineSelect,
   onLineDoubleClick,
@@ -92,6 +96,30 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
     return map;
   }, [comments]);
 
+  // Build maps for source reference line types (test body / input / output)
+  type SourceRefLineType = 'test-body' | 'test-input' | 'test-output';
+  const lineToSourceRef = useMemo(() => {
+    const map = new Map<number, { type: SourceRefLineType; ref: SourceReference }[]>();
+    const addRange = (start: number, end: number, type: SourceRefLineType, ref: SourceReference) => {
+      if (!start || !end) return;
+      for (let i = start; i <= end; i++) {
+        if (!map.has(i)) map.set(i, []);
+        map.get(i)!.push({ type, ref });
+      }
+    };
+    sourceReferences.forEach(ref => {
+      // inputLines and outputLines take priority over lineRange for coloring
+      addRange(ref.lineRange.start, ref.lineRange.end, 'test-body', ref);
+      if (ref.inputLines?.start && ref.inputLines?.end) {
+        addRange(ref.inputLines.start, ref.inputLines.end, 'test-input', ref);
+      }
+      if (ref.outputLines?.start && ref.outputLines?.end) {
+        addRange(ref.outputLines.start, ref.outputLines.end, 'test-output', ref);
+      }
+    });
+    return map;
+  }, [sourceReferences]);
+
   // Calculate max depth for normalization
   const maxDepth = useMemo(() => {
     let max = 0;
@@ -115,6 +143,13 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
         onLineClick(testId);
       });
     }
+
+    // Handle source reference navigation (test file → source)
+    const srcRefs = lineToSourceRef.get(lineNum);
+    if (srcRefs && srcRefs.length > 0 && onSourceRefClick) {
+      const first = srcRefs[0];
+      onSourceRefClick(first.ref.sourceFile, first.ref.coveredLines.start);
+    }
   };
 
   const handleLineDoubleClick = (lineNum: number) => {
@@ -125,6 +160,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
 
   const hasCoverageData = maxDepth > 0;
   const hasComments = comments.length > 0;
+  const hasSourceRefs = sourceReferences.length > 0;
 
   // Scroll to selected line on mount or when selectedLine changes
   const selectedLineRef = React.useRef<HTMLDivElement>(null);
@@ -144,6 +180,11 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
         {hasCoverageData && (
           <span className="coverage-indicator">
             Coverage depth enabled
+          </span>
+        )}
+        {hasSourceRefs && (
+          <span className="source-ref-indicator">
+            Source links enabled
           </span>
         )}
       </div>
@@ -235,6 +276,25 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
             const hasCoverage = coverageTests && coverageTests.length > 0;
             const lineComments = lineToComments.get(lineNum);
             const hasComment = lineComments && lineComments.length > 0;
+            const srcRefs = lineToSourceRef.get(lineNum);
+
+            // Determine source ref class: output > input > body (most specific wins)
+            let srcRefClass = '';
+            let srcRefTitle = '';
+            if (srcRefs && srcRefs.length > 0) {
+              const hasOutput = srcRefs.some(r => r.type === 'test-output');
+              const hasInput = srcRefs.some(r => r.type === 'test-input');
+              if (hasOutput) {
+                srcRefClass = 'test-output';
+                srcRefTitle = `Expected output — click to go to source: ${srcRefs[0].ref.sourceFile}`;
+              } else if (hasInput) {
+                srcRefClass = 'test-input';
+                srcRefTitle = `Test input — click to go to source: ${srcRefs[0].ref.sourceFile}`;
+              } else {
+                srcRefClass = 'test-body';
+                srcRefTitle = `Tests ${srcRefs[0].ref.functionName} in ${srcRefs[0].ref.sourceFile} — click to navigate`;
+              }
+            }
 
             return (
               <div
@@ -242,10 +302,10 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
                 ref={isSelected ? selectedLineRef : null}
                 onClick={() => handleLineClick(lineNum)}
                 onDoubleClick={() => handleLineDoubleClick(lineNum)}
-                className={`code-line ${isHighlighted ? 'highlighted' : ''} ${hasCoverage && !isHighlighted ? 'covered' : ''} ${isSelected ? 'selected' : ''} ${hasComment ? 'has-comment' : ''}`}
-                title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to filter/view.` : hasCoverage ? `Covered by ${coverageTests.length} test(s)` : hasComment ? `Double-click to add comment. Has ${lineComments!.length} comment(s).` : 'Double-click to add comment'}
+                className={`code-line ${isHighlighted ? 'highlighted' : ''} ${hasCoverage && !isHighlighted ? 'covered' : ''} ${isSelected ? 'selected' : ''} ${hasComment ? 'has-comment' : ''} ${!isHighlighted && !isSelected && srcRefClass ? srcRefClass : ''}`}
+                title={isHighlighted ? `Covered by ${tests!.length} test(s). Click to filter/view.` : srcRefClass ? srcRefTitle : hasCoverage ? `Covered by ${coverageTests.length} test(s)` : hasComment ? `Double-click to add comment. Has ${lineComments!.length} comment(s).` : 'Double-click to add comment'}
                 style={{
-                  backgroundColor: hasComment ? 'rgba(245, 158, 11, 0.1)' : undefined,
+                  backgroundColor: hasComment && !srcRefClass ? 'rgba(245, 158, 11, 0.1)' : undefined,
                 }}
               >
                 {line === '' ? '\u00a0' : line}

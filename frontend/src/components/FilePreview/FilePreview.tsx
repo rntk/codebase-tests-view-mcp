@@ -1,7 +1,7 @@
 import React from 'react';
 import { CodeViewer } from './CodeViewer';
 import { MindMap } from '../MindMap/MindMap';
-import type { FileContent, MindMapNode, Comment } from '../../types';
+import type { FileContent, MindMapNode, Comment, SourceReference } from '../../types';
 
 import { filterItemsByLine } from '../../utils/testUtils';
 
@@ -10,6 +10,8 @@ interface FilePreviewProps {
   loading: boolean;
   error: string | null;
   onTestClick?: (testId: string) => void;
+  sourceReferences?: SourceReference[];
+  onSourceRefClick?: (sourceFile: string, line: number) => void;
   selectedLine?: number | null;
   onLineSelect?: (line: number) => void;
   onLineDoubleClick?: (line: number) => void;
@@ -22,6 +24,8 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   loading,
   error,
   onTestClick,
+  sourceReferences = [],
+  onSourceRefClick,
   selectedLine,
   onLineSelect,
   onLineDoubleClick,
@@ -73,6 +77,36 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
 
   const hasTests = mindMapData.children && mindMapData.children.length > 0;
 
+  // Build reverse mind map: test file → source functions → source files
+  const hasSourceRefs = sourceReferences.length > 0;
+  const reverseMindMapData: MindMapNode | null = hasSourceRefs ? (() => {
+    const sourceFileMap = new Map<string, Map<string, SourceReference[]>>();
+    sourceReferences.forEach(ref => {
+      if (!sourceFileMap.has(ref.sourceFile)) {
+        sourceFileMap.set(ref.sourceFile, new Map());
+      }
+      const funcMap = sourceFileMap.get(ref.sourceFile)!;
+      if (!funcMap.has(ref.functionName)) {
+        funcMap.set(ref.functionName, []);
+      }
+      funcMap.get(ref.functionName)!.push(ref);
+    });
+
+    return {
+      id: file.path,
+      label: file.name,
+      children: Array.from(sourceFileMap.entries()).map(([sourceFile, funcMap]) => ({
+        id: `src:${sourceFile}`,
+        label: sourceFile.split('/').pop() ?? sourceFile,
+        children: Array.from(funcMap.entries()).map(([funcName, refs]) => ({
+          id: `src:${sourceFile}:${funcName}`,
+          label: funcName,
+          edgeLabel: refs[0]?.comment,
+        })),
+      })),
+    };
+  })() : null;
+
   return (
     <div>
       <CodeViewer
@@ -81,7 +115,9 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         testReferences={file.metadata?.tests ?? []}
         coverageDepth={file.coverageDepth}
         comments={comments}
+        sourceReferences={sourceReferences}
         onLineClick={onTestClick}
+        onSourceRefClick={onSourceRefClick}
         selectedLine={selectedLine}
         onLineSelect={onLineSelect}
         onLineDoubleClick={onLineDoubleClick}
@@ -117,7 +153,37 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
         </div>
       )}
 
-      {!hasTests && (
+      {hasSourceRefs && reverseMindMapData && (
+        <div style={{ marginTop: '24px' }}>
+          <div style={{ marginBottom: '16px' }}>
+            <h3 style={{ margin: 0, fontSize: '16px' }}>
+              Source Coverage
+            </h3>
+            <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+              Click highlighted lines to navigate to the source function
+            </p>
+          </div>
+          <MindMap data={reverseMindMapData} onNodeClick={(nodeId) => {
+            // nodeId format: "src:sourceFile:funcName" or "src:sourceFile"
+            const parts = nodeId.split(':');
+            if (parts.length >= 3) {
+              const sourceFile = parts.slice(1, -1).join(':');
+              const ref = sourceReferences.find(r => r.sourceFile === sourceFile);
+              if (ref && onSourceRefClick) {
+                onSourceRefClick(ref.sourceFile, ref.coveredLines.start);
+              }
+            } else if (parts.length === 2) {
+              const sourceFile = parts[1];
+              const ref = sourceReferences.find(r => r.sourceFile === sourceFile);
+              if (ref && onSourceRefClick) {
+                onSourceRefClick(ref.sourceFile, ref.coveredLines.start);
+              }
+            }
+          }} />
+        </div>
+      )}
+
+      {!hasTests && !hasSourceRefs && (
         <div style={{ marginTop: '24px', color: '#666', textAlign: 'center' }}>
           No test metadata available for this file
         </div>
