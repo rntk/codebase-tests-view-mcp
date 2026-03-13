@@ -896,12 +896,56 @@ a {
 
 /* File explorer specific */
 .file-list-container {
-  padding: var(--space-md);
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.file-list-header {
+  flex-shrink: 0;
+}
+
+.file-list-tab-content {
+  flex: 1;
+  min-height: 0;
+}
+
+.file-list-tab-content--files {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-list-files-nav {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  flex-shrink: 0;
+  padding-top: var(--space-md);
+  padding-bottom: var(--space-md);
+  background-color: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.file-list-files-body {
+  flex: 1;
+  min-height: 0;
+  padding-top: var(--space-md);
+}
+
+.file-list-tab-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding-top: var(--space-md);
 }
 
 .file-items {
   display: flex;
   flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
 }
 
 .file-item {
@@ -950,7 +994,7 @@ a {
   display: flex;
   align-items: center;
   gap: 4px;
-  margin-bottom: 16px;
+  margin-bottom: var(--space-md);
   font-size: 13px;
   color: var(--text-secondary);
   flex-wrap: wrap;
@@ -980,6 +1024,11 @@ a {
 
 /* Tests list */
 .tests-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.functions-with-tests {
   display: flex;
   flex-direction: column;
 }

@@ -46,91 +46,96 @@ export const FileList: React.FC<FileListProps> = ({
 
   return (
     <div className="file-list-container">
-      <h2 className="section-title mt-0 mb-md">
-        Explorer
-      </h2>
+      <div className="file-list-header">
+        <h2 className="section-title mt-0 mb-md">
+          Explorer
+        </h2>
 
-      <Breadcrumbs currentPath={path} onPathChange={onPathChange} />
-
-      <div className="mb-md">
-        <PathInput path={path} onChange={onPathChange} />
+        <div className="tab-bar">
+          <TabButton
+            label="Files"
+            isActive={activeTab === 'files'}
+            onClick={() => setActiveTab('files')}
+            badge={files.length}
+          />
+          <TabButton
+            label="Tests"
+            isActive={activeTab === 'tests'}
+            onClick={() => setActiveTab('tests')}
+            badge={tests.length}
+          />
+          <TabButton
+            label="Functions"
+            isActive={activeTab === 'functions'}
+            onClick={() => setActiveTab('functions')}
+            badge={functionsWithTests.size}
+          />
+        </div>
       </div>
 
-      {/* Tab buttons */}
-      <div className="tab-bar">
-        <TabButton
-          label="Files"
-          isActive={activeTab === 'files'}
-          onClick={() => setActiveTab('files')}
-          badge={files.length}
-        />
-        <TabButton
-          label="Tests"
-          isActive={activeTab === 'tests'}
-          onClick={() => setActiveTab('tests')}
-          badge={tests.length}
-        />
-        <TabButton
-          label="Functions"
-          isActive={activeTab === 'functions'}
-          onClick={() => setActiveTab('functions')}
-          badge={functionsWithTests.size}
-        />
-      </div>
-
-      {/* Tab content */}
       {activeTab === 'files' && (
-        <>
-          {loading && (
-            <div className="loading-state">
-              Loading files...
-            </div>
-          )}
+        <div className="file-list-tab-content file-list-tab-content--files">
+          <div className="file-list-files-nav">
+            <PathInput path={path} onChange={onPathChange} />
+            <Breadcrumbs currentPath={path} onPathChange={onPathChange} />
+          </div>
 
-          {error && (
-            <div className="error-state">
-              Error: {error}
-            </div>
-          )}
+          <div className="file-list-files-body">
+            {loading && (
+              <div className="loading-state">
+                Loading files...
+              </div>
+            )}
 
-          {!loading && !error && (
-            <div className="file-items">
-              {files.length === 0 && (
-                <div className="empty-state">
-                  No files found in this directory
-                </div>
-              )}
-              {files.map((file) => (
-                <FileItem
-                  key={file.path}
-                  file={file}
-                  onClick={() => onFileClick(file)}
-                  isSelected={selectedPath === file.path}
-                />
-              ))}
-            </div>
-          )}
-        </>
+            {error && (
+              <div className="error-state">
+                Error: {error}
+              </div>
+            )}
+
+            {!loading && !error && (
+              <div className="file-items">
+                {files.length === 0 && (
+                  <div className="empty-state">
+                    No files found in this directory
+                  </div>
+                )}
+                {files.map((file) => (
+                  <FileItem
+                    key={file.path}
+                    file={file}
+                    onClick={() => onFileClick(file)}
+                    isSelected={selectedPath === file.path}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
 
       {activeTab === 'tests' && (
-        <TestsList
-          tests={tests}
-          loading={testsLoading}
-          error={testsError}
-          onTestClick={onTestClick}
-          onSourceFileClick={onSourceFileClick}
-        />
+        <div className="file-list-tab-scroll">
+          <TestsList
+            tests={tests}
+            loading={testsLoading}
+            error={testsError}
+            onTestClick={onTestClick}
+            onSourceFileClick={onSourceFileClick}
+          />
+        </div>
       )}
 
       {activeTab === 'functions' && (
-        <FunctionsWithTests
-          tests={tests}
-          loading={testsLoading}
-          error={testsError}
-          onTestClick={onTestClick}
-          onSourceFileClick={onSourceFileClick}
-        />
+        <div className="file-list-tab-scroll">
+          <FunctionsWithTests
+            tests={tests}
+            loading={testsLoading}
+            error={testsError}
+            onTestClick={onTestClick}
+            onSourceFileClick={onSourceFileClick}
+          />
+        </div>
       )}
     </div>
   );
