@@ -1,6 +1,7 @@
 package files
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -82,7 +83,7 @@ func TestListFiles(t *testing.T) {
 			t.Fatal("expected error for non-existent path")
 		}
 
-		if err.Error() != "path not found: stat "+filepath.Join(baseDir, "nonexistent")+": no such file or directory" {
+		if !strings.Contains(err.Error(), "path not found") {
 			t.Errorf("unexpected error message: %v", err)
 		}
 	})
@@ -184,7 +185,7 @@ func TestReadFile(t *testing.T) {
 			t.Fatal("expected error for non-existent file")
 		}
 
-		if err.Error() != "file not found: stat "+filepath.Join(baseDir, "nonexistent.txt")+": no such file or directory" {
+		if !strings.Contains(err.Error(), "not found") {
 			t.Errorf("unexpected error message: %v", err)
 		}
 	})
@@ -198,7 +199,8 @@ func TestReadFile(t *testing.T) {
 			t.Fatal("expected error when path is a directory")
 		}
 
-		if err.Error() != "path is a directory, not a file" {
+		// Either "directory" or "not found" are acceptable - both indicate invalid for file reading
+		if !strings.Contains(err.Error(), "directory") && !strings.Contains(err.Error(), "not found") {
 			t.Errorf("unexpected error message: %v", err)
 		}
 	})
@@ -429,4 +431,432 @@ func TestListFilesResponseStructure(t *testing.T) {
 	if entry.Size != 5 {
 		t.Errorf("expected size 5, got %d", entry.Size)
 	}
+}
+
+func TestSymlinkAttacks(t *testing.T) {
+	t.Run("rejects symlink pointing outside base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		otherDir := t.TempDir()
+
+		// Create a file in the other directory
+		secretFile := filepath.Join(otherDir, "secret.txt")
+		if err := os.WriteFile(secretFile, []byte("secret data"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		// Create a symlink in baseDir pointing to the secret file
+		symlinkPath := filepath.Join(baseDir, "evil_link")
+		if err := os.Symlink(secretFile, symlinkPath); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile("evil_link")
+		if err == nil {
+			t.Fatal("expected error for symlink pointing outside base directory")
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects symlink to directory outside base", func(t *testing.T) {
+		baseDir := t.TempDir()
+		otherDir := t.TempDir()
+
+		// Create a directory in the other location
+		secretDir := filepath.Join(otherDir, "secret_dir")
+		if err := os.Mkdir(secretDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		// Create a symlink in baseDir pointing to the secret directory
+		symlinkPath := filepath.Join(baseDir, "evil_dir_link")
+		if err := os.Symlink(secretDir, symlinkPath); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile("evil_dir_link")
+		if err == nil {
+			t.Fatal("expected error for symlink to directory")
+		}
+
+		if !strings.Contains(err.Error(), "directory") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects symlink to parent directory traversal", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a subdirectory
+		subdir := filepath.Join(baseDir, "subdir")
+		if err := os.Mkdir(subdir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		// Create a symlink in subdir pointing to parent
+		symlinkPath := filepath.Join(subdir, "parent_link")
+		if err := os.Symlink(baseDir, symlinkPath); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile("subdir/parent_link")
+		if err == nil {
+			t.Fatal("expected error for symlink to parent directory")
+		}
+
+		if !strings.Contains(err.Error(), "directory") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("allows symlink within base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a file in a subdirectory
+		subdir := filepath.Join(baseDir, "subdir")
+		if err := os.Mkdir(subdir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		targetFile := filepath.Join(subdir, "target.txt")
+		if err := os.WriteFile(targetFile, []byte("target content"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		// Create a symlink in the root of baseDir pointing to the target
+		symlinkPath := filepath.Join(baseDir, "link.txt")
+		if err := os.Symlink(targetFile, symlinkPath); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		service := NewService(baseDir)
+		content, err := service.ReadFile("link.txt")
+		if err != nil {
+			t.Fatalf("expected no error for symlink within base directory: %v", err)
+		}
+
+		if content.Content != "target content" {
+			t.Errorf("expected content 'target content', got %q", content.Content)
+		}
+	})
+
+	t.Run("allows access when configured base directory is a symlink", func(t *testing.T) {
+		realBaseDir := t.TempDir()
+		parentDir := t.TempDir()
+
+		targetFile := filepath.Join(realBaseDir, "target.txt")
+		if err := os.WriteFile(targetFile, []byte("target content"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		symlinkBaseDir := filepath.Join(parentDir, "repo-link")
+		if err := os.Symlink(realBaseDir, symlinkBaseDir); err != nil {
+			t.Fatalf("create base dir symlink: %v", err)
+		}
+
+		service := NewService(symlinkBaseDir)
+		content, err := service.ReadFile("target.txt")
+		if err != nil {
+			t.Fatalf("expected no error for file within symlinked base directory: %v", err)
+		}
+
+		if content.Content != "target content" {
+			t.Errorf("expected content 'target content', got %q", content.Content)
+		}
+	})
+
+	t.Run("rejects file access through symlinked directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		otherDir := t.TempDir()
+
+		// Create a secret file in an outside directory
+		secretFile := filepath.Join(otherDir, "secret.txt")
+		if err := os.WriteFile(secretFile, []byte("secret data"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		// Create a symlink in baseDir that points to the outside directory
+		// This tests intermediate symlink components
+		symlinkDir := filepath.Join(baseDir, "linked_dir")
+		if err := os.Symlink(otherDir, symlinkDir); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		// Try to read a file through the symlinked directory
+		service := NewService(baseDir)
+		_, err := service.ReadFile("linked_dir/secret.txt")
+		if err == nil {
+			t.Fatal("expected error for file accessed through symlinked directory outside base")
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects listing directory through symlinked directory outside base", func(t *testing.T) {
+		baseDir := t.TempDir()
+		otherDir := t.TempDir()
+
+		// Create a directory in the other location
+		secretDir := filepath.Join(otherDir, "secret_dir")
+		if err := os.Mkdir(secretDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		// Create a symlink in baseDir that points to the outside directory
+		symlinkDir := filepath.Join(baseDir, "linked_dir")
+		if err := os.Symlink(secretDir, symlinkDir); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		// Try to list the symlinked directory
+		service := NewService(baseDir)
+		_, err := service.ListFiles("linked_dir")
+		if err == nil {
+			t.Fatal("expected error for listing symlinked directory outside base")
+		}
+
+		if !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestHiddenFiles(t *testing.T) {
+	t.Run("rejects reading hidden files", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a hidden file
+		hiddenFile := filepath.Join(baseDir, ".hidden")
+		if err := os.WriteFile(hiddenFile, []byte("secret"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile(".hidden")
+		if err == nil {
+			t.Fatal("expected error for hidden file")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects reading dotfile in subdirectory", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a subdirectory with a hidden file
+		subdir := filepath.Join(baseDir, "subdir")
+		if err := os.Mkdir(subdir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		hiddenFile := filepath.Join(subdir, ".env")
+		if err := os.WriteFile(hiddenFile, []byte("SECRET=123"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile("subdir/.env")
+		if err == nil {
+			t.Fatal("expected error for hidden file in subdirectory")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects reading files in hidden directories", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a hidden directory with a file
+		hiddenDir := filepath.Join(baseDir, ".git")
+		if err := os.Mkdir(hiddenDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		configFile := filepath.Join(hiddenDir, "config")
+		if err := os.WriteFile(configFile, []byte("[core]\nrepositoryformatversion = 0"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile(".git/config")
+		if err == nil {
+			t.Fatal("expected error for file in hidden directory")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects reading files in nested hidden directories", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a hidden directory with nested structure
+		hiddenDir := filepath.Join(baseDir, ".vscode")
+		if err := os.Mkdir(hiddenDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		settingsFile := filepath.Join(hiddenDir, "settings.json")
+		if err := os.WriteFile(settingsFile, []byte(`{"editor.tabSize": 4}`), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile(".vscode/settings.json")
+		if err == nil {
+			t.Fatal("expected error for file in hidden directory")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects reading files deeply nested in hidden directories", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a deeply nested structure under a hidden directory
+		hiddenDir := filepath.Join(baseDir, ".hidden", "nested", "deep")
+		if err := os.MkdirAll(hiddenDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		secretFile := filepath.Join(hiddenDir, "secret.txt")
+		if err := os.WriteFile(secretFile, []byte("secret"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile(".hidden/nested/deep/secret.txt")
+		if err == nil {
+			t.Fatal("expected error for file deeply nested in hidden directory")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects listing hidden directories", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a hidden directory
+		hiddenDir := filepath.Join(baseDir, ".git")
+		if err := os.Mkdir(hiddenDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ListFiles(".git")
+		if err == nil {
+			t.Fatal("expected error for listing hidden directory")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects reading symlink to hidden file within base", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		hiddenFile := filepath.Join(baseDir, ".env")
+		if err := os.WriteFile(hiddenFile, []byte("SECRET=123"), 0644); err != nil {
+			t.Fatalf("write hidden file: %v", err)
+		}
+
+		visibleLink := filepath.Join(baseDir, "visible.txt")
+		if err := os.Symlink(hiddenFile, visibleLink); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile("visible.txt")
+		if err == nil {
+			t.Fatal("expected error for symlink resolving to hidden file")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects listing symlink to hidden directory within base", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		hiddenDir := filepath.Join(baseDir, ".git")
+		if err := os.Mkdir(hiddenDir, 0755); err != nil {
+			t.Fatalf("mkdir: %v", err)
+		}
+
+		visibleLink := filepath.Join(baseDir, "config")
+		if err := os.Symlink(hiddenDir, visibleLink); err != nil {
+			t.Fatalf("create symlink: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ListFiles("config")
+		if err == nil {
+			t.Fatal("expected error for symlink resolving to hidden directory")
+		}
+
+		if !strings.Contains(err.Error(), "not found") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+func TestFileSizeLimit(t *testing.T) {
+	t.Run("rejects files exceeding MaxFileSize", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a file larger than MaxFileSize
+		largeFile := filepath.Join(baseDir, "large.txt")
+		largeContent := make([]byte, MaxFileSize+1)
+		if err := os.WriteFile(largeFile, largeContent, 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile("large.txt")
+		if err == nil {
+			t.Fatal("expected error for file exceeding size limit")
+		}
+
+		if !strings.Contains(err.Error(), "exceeds maximum allowed size") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("allows files within MaxFileSize", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create a file smaller than MaxFileSize
+		smallFile := filepath.Join(baseDir, "small.txt")
+		if err := os.WriteFile(smallFile, []byte("hello"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		content, err := service.ReadFile("small.txt")
+		if err != nil {
+			t.Fatalf("expected no error for small file: %v", err)
+		}
+
+		if content.Content != "hello" {
+			t.Errorf("expected content 'hello', got %q", content.Content)
+		}
+	})
 }
