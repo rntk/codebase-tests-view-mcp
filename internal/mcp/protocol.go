@@ -3,7 +3,7 @@ package mcp
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -180,7 +180,7 @@ func (h *Handler) Handle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	log.Printf("MCP Request: %s", req.Method)
+	slog.Info("MCP request", "method", req.Method)
 
 	var result interface{}
 	var err error
@@ -444,7 +444,7 @@ func (h *Handler) sendSuccess(w http.ResponseWriter, id interface{}, result inte
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Error encoding JSON response: %v", err)
+		slog.Error("Error encoding JSON response", "error", err)
 	}
 }
 
@@ -461,7 +461,7 @@ func (h *Handler) sendError(w http.ResponseWriter, id interface{}, code int, mes
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		log.Printf("Error encoding JSON error response: %v", err)
+		slog.Error("Error encoding JSON error response", "error", err)
 	}
 }
 

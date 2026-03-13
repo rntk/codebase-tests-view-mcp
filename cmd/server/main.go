@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"log"
+	"log/slog"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -23,17 +23,19 @@ func main() {
 	// Resolve absolute path for base directory
 	absBaseDir, err := filepath.Abs(*baseDir)
 	if err != nil {
-		log.Fatalf("Failed to resolve base directory: %v", err)
+		slog.Error("Failed to resolve base directory", "error", err)
+		os.Exit(1)
 	}
 
-	log.Printf("Starting Codebase Test Viewer")
-	log.Printf("Base directory: %s", absBaseDir)
-	log.Printf("Metadata file: %s", *metadataPath)
-	log.Printf("Server port: %s", *port)
+	slog.Info("Starting Codebase Test Viewer")
+	slog.Info("Base directory", "dir", absBaseDir)
+	slog.Info("Metadata file", "path", *metadataPath)
+	slog.Info("Server port", "port", *port)
 
 	// Check if base directory exists
 	if _, err := os.Stat(absBaseDir); os.IsNotExist(err) {
-		log.Fatalf("Base directory does not exist: %s", absBaseDir)
+		slog.Error("Base directory does not exist", "dir", absBaseDir)
+		os.Exit(1)
 	}
 
 	// Initialize services
@@ -52,11 +54,10 @@ func main() {
 
 	// Start server
 	addr := ":" + *port
-	log.Printf("Server listening on http://localhost%s", addr)
-	log.Printf("API available at http://localhost%s/api", addr)
-	log.Printf("MCP endpoint at http://localhost%s/api/mcp", addr)
+	slog.Info("Server starting", "address", addr, "api", "/api", "mcp", "/api/mcp")
 
 	if err := http.ListenAndServe(addr, handler); err != nil {
-		log.Fatalf("Server failed: %v", err)
+		slog.Error("Server failed", "error", err)
+		os.Exit(1)
 	}
 }

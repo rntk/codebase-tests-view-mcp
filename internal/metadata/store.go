@@ -3,7 +3,7 @@ package metadata
 import (
 	"encoding/json"
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"sync"
 	"time"
@@ -28,7 +28,7 @@ func NewStore(persistPath string) *Store {
 
 	if persistPath != "" {
 		if err := store.load(); err != nil {
-			log.Printf("Warning: failed to load metadata from %s: %v", persistPath, err)
+			slog.Warn("Failed to load metadata", "path", persistPath, "error", err)
 		}
 	}
 
