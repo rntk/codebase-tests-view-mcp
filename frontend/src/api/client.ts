@@ -8,7 +8,8 @@ import type {
   CommentResponse,
   CommentRequest,
   ExportContextRequest,
-  ExportContextResponse
+  ExportContextResponse,
+  OverviewResponse
 } from '../types';
 
 const API_BASE = '/api';
@@ -107,7 +108,7 @@ export async function toggleCommentResolved(path: string, commentId: string): Pr
 // ==================== EXPORT API ====================
 
 export async function exportContext(
-  path: string, 
+  path: string,
   request: ExportContextRequest
 ): Promise<ExportContextResponse> {
   const response = await fetch(`${API_BASE}/files/${encodeURIComponent(path)}/export`, {
@@ -117,6 +118,16 @@ export async function exportContext(
   });
   if (!response.ok) {
     throw new Error(`Failed to export context: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+// ==================== OVERVIEW API ====================
+
+export async function getProjectOverview(): Promise<OverviewResponse> {
+  const response = await fetch(`${API_BASE}/overview`);
+  if (!response.ok) {
+    throw new Error(`Failed to get project overview: ${response.statusText}`);
   }
   return response.json();
 }

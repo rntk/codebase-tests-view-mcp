@@ -5,10 +5,11 @@ import { Breadcrumbs } from './Breadcrumbs';
 import { TabButton } from './TabButton';
 import { TestsList } from './TestsList';
 import { FunctionsWithTests } from './FunctionsWithTests';
-import type { FileEntry, TestDetail } from '../../types';
+import { ProjectOverview } from './ProjectOverview';
+import type { FileEntry, TestDetail, OverviewResponse } from '../../types';
 import { groupTestsByFunction } from '../../utils/testUtils';
 
-type ExplorerTab = 'files' | 'tests' | 'functions';
+type ExplorerTab = 'overview' | 'files' | 'tests' | 'functions';
 
 interface FileListProps {
   path: string;
@@ -23,6 +24,10 @@ interface FileListProps {
   testsError: string | null;
   onTestClick: (test: TestDetail) => void;
   onSourceFileClick: (sourceFile: string, line: number) => void;
+  // Overview props
+  overview: OverviewResponse | null;
+  overviewLoading: boolean;
+  overviewError: string | null;
 }
 
 export const FileList: React.FC<FileListProps> = ({
@@ -38,8 +43,11 @@ export const FileList: React.FC<FileListProps> = ({
   testsError,
   onTestClick,
   onSourceFileClick,
+  overview,
+  overviewLoading,
+  overviewError,
 }) => {
-  const [activeTab, setActiveTab] = useState<ExplorerTab>('files');
+  const [activeTab, setActiveTab] = useState<ExplorerTab>('overview');
 
   // Group tests by function name for the functions tab (using shared utility)
   const functionsWithTests = useMemo(() => groupTestsByFunction(tests), [tests]);
@@ -52,6 +60,12 @@ export const FileList: React.FC<FileListProps> = ({
         </h2>
 
         <div className="tab-bar">
+          <TabButton
+            label="Overview"
+            isActive={activeTab === 'overview'}
+            onClick={() => setActiveTab('overview')}
+            badge={overview?.totalTests}
+          />
           <TabButton
             label="Files"
             isActive={activeTab === 'files'}
@@ -72,6 +86,18 @@ export const FileList: React.FC<FileListProps> = ({
           />
         </div>
       </div>
+
+      {activeTab === 'overview' && (
+        <div className="file-list-tab-scroll">
+          <ProjectOverview
+            overview={overview}
+            loading={overviewLoading}
+            error={overviewError}
+            onTestClick={onTestClick}
+            onSourceFileClick={onSourceFileClick}
+          />
+        </div>
+      )}
 
       {activeTab === 'files' && (
         <div className="file-list-tab-content file-list-tab-content--files">

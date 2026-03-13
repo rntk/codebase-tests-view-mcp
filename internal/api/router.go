@@ -6,6 +6,9 @@ import "net/http"
 func SetupRoutes(h *Handler) *http.ServeMux {
 	mux := http.NewServeMux()
 
+	// Overview endpoint (global project summary)
+	mux.HandleFunc("GET /api/overview", h.GetOverview)
+
 	// File operations
 	mux.HandleFunc("GET /api/files", h.ListFiles)
 	mux.HandleFunc("GET /api/files/{path...}", h.GetFileOrTests)

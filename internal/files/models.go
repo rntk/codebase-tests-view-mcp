@@ -168,3 +168,21 @@ type CodeContextBlock struct {
 	Code      string    `json:"code"`
 	Comments  []Comment `json:"comments"`
 }
+
+// FunctionSummary represents a function with its tests for the overview
+type FunctionSummary struct {
+	FunctionName string       `json:"functionName"`
+	SourceFile   string       `json:"sourceFile"`
+	TestCount    int          `json:"testCount"`
+	Tests        []TestDetail `json:"tests"`
+}
+
+// OverviewResponse for GET /api/overview
+type OverviewResponse struct {
+	TotalTests          int               `json:"totalTests"`
+	TotalFunctions      int               `json:"totalFunctions"`
+	TotalSourceFiles    int               `json:"totalSourceFiles"`
+	TotalTestFiles      int               `json:"totalTestFiles"`
+	Functions           []FunctionSummary `json:"functions"`
+	TestsBySourceFile   map[string][]TestDetail `json:"testsBySourceFile"`
+}

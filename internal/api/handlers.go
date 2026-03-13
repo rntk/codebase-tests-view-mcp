@@ -546,3 +546,101 @@ func extractLines(lines []string, start, end int) string {
 	selected := lines[start:end]
 	return strings.Join(selected, "\n")
 }
+
+// GetOverview handles GET /api/overview
+// Returns a global summary of all tests and functions across the codebase
+func (h *Handler) GetOverview(w http.ResponseWriter, r *http.Request) {
+	// Get all metadata from the store
+	allMetadata := h.metaStore.GetAllMetadata()
+
+	// Build the overview response
+	response := files.OverviewResponse{
+		TestsBySourceFile: make(map[string][]files.TestDetail),
+	}
+
+	// Track unique test files and source files
+	testFilesSet := make(map[string]bool)
+	sourceFilesSet := make(map[string]bool)
+
+	// Group tests by function name to count unique functions
+	functionTestsMap := make(map[string][]files.TestDetail)
+	functionSourceMap := make(map[string]string) // functionName -> sourceFile
+
+	for sourceFile, metadata := range allMetadata {
+		if metadata == nil || len(metadata.Tests) == 0 {
+			continue
+		}
+
+		sourceFilesSet[sourceFile] = true
+
+		for _, testRef := range metadata.Tests {
+			// Track test file
+			testFilesSet[testRef.TestFile] = true
+
+			// Build test detail
+			detail := files.TestDetail{
+				FunctionName: testRef.FunctionName,
+				TestFile:     testRef.TestFile,
+				TestName:     testRef.TestName,
+				Comment:      testRef.Comment,
+				LineRange:    testRef.LineRange,
+				CoveredLines: testRef.CoveredLines,
+				InputLines:   testRef.InputLines,
+				OutputLines:  testRef.OutputLines,
+			}
+
+			// Read test file content
+			testContent, err := h.fileService.ReadFile(testRef.TestFile)
+			if err == nil {
+				detail.Content = testContent.Content
+				lines := strings.Split(testContent.Content, "\n")
+				if testRef.InputLines.Start > 0 && testRef.InputLines.End > 0 {
+					detail.InputData = extractLines(lines, testRef.InputLines.Start, testRef.InputLines.End)
+				}
+				if testRef.OutputLines.Start > 0 && testRef.OutputLines.End > 0 {
+					detail.ExpectedOutput = extractLines(lines, testRef.OutputLines.Start, testRef.OutputLines.End)
+				}
+			}
+
+			// Add to tests by source file
+			response.TestsBySourceFile[sourceFile] = append(response.TestsBySourceFile[sourceFile], detail)
+
+			// Group by function name
+			funcKey := testRef.FunctionName + "::" + sourceFile
+			functionTestsMap[funcKey] = append(functionTestsMap[funcKey], detail)
+			functionSourceMap[funcKey] = sourceFile
+
+			response.TotalTests++
+		}
+	}
+
+	// Build function summaries
+	for funcKey, tests := range functionTestsMap {
+		// Extract function name from key (format: "functionName::sourceFile")
+		functionName := funcKey
+		for i := len(funcKey) - 1; i >= 0; i-- {
+			if funcKey[i] == ':' && i > 0 && funcKey[i-1] == ':' {
+				functionName = funcKey[:i-1]
+				break
+			}
+		}
+
+		sourceFile := functionSourceMap[funcKey]
+		response.Functions = append(response.Functions, files.FunctionSummary{
+			FunctionName: functionName,
+			SourceFile:   sourceFile,
+			TestCount:    len(tests),
+			Tests:        tests,
+		})
+		response.TotalFunctions++
+	}
+
+	response.TotalSourceFiles = len(sourceFilesSet)
+	response.TotalTestFiles = len(testFilesSet)
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}

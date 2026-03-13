@@ -163,3 +163,21 @@ export interface ExportContextResponse {
   suggestions?: TestSuggestion[];
   formatted: string;
 }
+
+// ==================== OVERVIEW TYPES ====================
+
+export interface FunctionSummary {
+  functionName: string;
+  sourceFile: string;
+  testCount: number;
+  tests: TestDetail[];
+}
+
+export interface OverviewResponse {
+  totalTests: number;
+  totalFunctions: number;
+  totalSourceFiles: number;
+  totalTestFiles: number;
+  functions: FunctionSummary[];
+  testsBySourceFile: Record<string, TestDetail[]>;
+}

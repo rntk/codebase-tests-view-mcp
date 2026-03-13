@@ -14,6 +14,7 @@ import { useSuggestions } from './hooks/useSuggestions';
 import { useComments } from './hooks/useComments';
 import { useExport } from './hooks/useExport';
 import { useSources } from './hooks/useSources';
+import { useProjectOverview } from './hooks/useProjectOverview';
 import type { FileEntry, TestDetail } from './types';
 import { filterItemsByLine } from './utils/testUtils';
 
@@ -84,6 +85,9 @@ function App() {
 
   // Load tests for all files in the current directory (for the Explorer tabs)
   const { tests: directoryTests, loading: directoryTestsLoading, error: directoryTestsError } = useDirectoryTests(currentPath, files);
+
+  // Load project overview (global summary of all tests and functions)
+  const { overview, loading: overviewLoading, error: overviewError } = useProjectOverview();
 
   // Load selected file content
   const { file, loading: fileLoading, error: fileError } = useFileContent(selectedFilePath);
@@ -235,6 +239,9 @@ function App() {
             testsError={directoryTestsError}
             onTestClick={handleExplorerTestClick}
             onSourceFileClick={handleSourceRefClick}
+            overview={overview}
+            overviewLoading={overviewLoading}
+            overviewError={overviewError}
           />
         }
         center={
