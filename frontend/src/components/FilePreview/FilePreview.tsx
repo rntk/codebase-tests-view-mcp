@@ -1,9 +1,12 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { CodeViewer } from './CodeViewer';
 import { MindMap } from '../MindMap/MindMap';
+import { TabButton } from '../FileExplorer/TabButton';
 import type { FileContent, MindMapNode, Comment, SourceReference } from '../../types';
 
 import { filterItemsByLine } from '../../utils/testUtils';
+
+type PreviewTab = 'code' | 'graph';
 
 interface FilePreviewProps {
   file: FileContent | null;
@@ -32,6 +35,8 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   onResetLineFilter,
   comments = [],
 }) => {
+  const [activeTab, setActiveTab] = useState<PreviewTab>('code');
+
   if (loading) {
     return <div>Loading file...</div>;
   }
@@ -107,76 +112,99 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
     };
   })() : null;
 
+  const hasGraphData = hasTests || hasSourceRefs;
+
   return (
-    <div>
-      <CodeViewer
-        content={file.content}
-        filename={file.name}
-        testReferences={file.metadata?.tests ?? []}
-        coverageDepth={file.coverageDepth}
-        comments={comments}
-        sourceReferences={sourceReferences}
-        onLineClick={onTestClick}
-        onSourceRefClick={onSourceRefClick}
-        selectedLine={selectedLine}
-        onLineSelect={onLineSelect}
-        onLineDoubleClick={onLineDoubleClick}
-      />
+    <div className="file-preview-container">
+      {/* Tab bar */}
+      <div className="tab-bar">
+        <TabButton
+          label="Code"
+          isActive={activeTab === 'code'}
+          onClick={() => setActiveTab('code')}
+        />
+        <TabButton
+          label="Graph"
+          isActive={activeTab === 'graph'}
+          onClick={() => setActiveTab('graph')}
+        />
+      </div>
 
-      {hasTests && (
-        <div className="mt-lg">
-          <div className="file-preview-actions">
-            <h3 className="section-title">
-              Test Coverage
-            </h3>
-            {selectedLine !== null && selectedLine !== undefined && onResetLineFilter && (
-              <button
-                type="button"
-                onClick={onResetLineFilter}
-                className="btn btn-ghost"
-                title="Clear line filter and show all functions"
-              >
-                Show all functions
-              </button>
-            )}
-          </div>
-          <MindMap data={mindMapData} onNodeClick={onTestClick} />
-        </div>
+      {/* Tab content */}
+      {activeTab === 'code' && (
+        <CodeViewer
+          content={file.content}
+          filename={file.name}
+          testReferences={file.metadata?.tests ?? []}
+          coverageDepth={file.coverageDepth}
+          comments={comments}
+          sourceReferences={sourceReferences}
+          onLineClick={onTestClick}
+          onSourceRefClick={onSourceRefClick}
+          selectedLine={selectedLine}
+          onLineSelect={onLineSelect}
+          onLineDoubleClick={onLineDoubleClick}
+        />
       )}
 
-      {hasSourceRefs && reverseMindMapData && (
-        <div className="mt-lg">
-          <div className="mb-md">
-            <h3 className="section-title">
-              Source Coverage
-            </h3>
-            <p className="text-secondary text-xs m-0">
-              Click highlighted lines to navigate to the source function
-            </p>
-          </div>
-          <MindMap data={reverseMindMapData} onNodeClick={(nodeId) => {
-            // nodeId format: "src:sourceFile:funcName" or "src:sourceFile"
-            const parts = nodeId.split(':');
-            if (parts.length >= 3) {
-              const sourceFile = parts.slice(1, -1).join(':');
-              const ref = sourceReferences.find(r => r.sourceFile === sourceFile);
-              if (ref && onSourceRefClick) {
-                onSourceRefClick(ref.sourceFile, ref.coveredLines.start);
-              }
-            } else if (parts.length === 2) {
-              const sourceFile = parts[1];
-              const ref = sourceReferences.find(r => r.sourceFile === sourceFile);
-              if (ref && onSourceRefClick) {
-                onSourceRefClick(ref.sourceFile, ref.coveredLines.start);
-              }
-            }
-          }} />
-        </div>
-      )}
+      {activeTab === 'graph' && (
+        <div className="graph-tab-content">
+          {hasTests && (
+            <div className="mt-lg">
+              <div className="file-preview-actions">
+                <h3 className="section-title">
+                  Test Coverage
+                </h3>
+                {selectedLine !== null && selectedLine !== undefined && onResetLineFilter && (
+                  <button
+                    type="button"
+                    onClick={onResetLineFilter}
+                    className="btn btn-ghost"
+                    title="Clear line filter and show all functions"
+                  >
+                    Show all functions
+                  </button>
+                )}
+              </div>
+              <MindMap data={mindMapData} onNodeClick={onTestClick} />
+            </div>
+          )}
 
-      {!hasTests && !hasSourceRefs && (
-        <div className="mt-lg text-secondary text-center">
-          No test metadata available for this file
+          {hasSourceRefs && reverseMindMapData && (
+            <div className="mt-lg">
+              <div className="mb-md">
+                <h3 className="section-title">
+                  Source Coverage
+                </h3>
+                <p className="text-secondary text-xs m-0">
+                  Click highlighted lines to navigate to the source function
+                </p>
+              </div>
+              <MindMap data={reverseMindMapData} onNodeClick={(nodeId) => {
+                // nodeId format: "src:sourceFile:funcName" or "src:sourceFile"
+                const parts = nodeId.split(':');
+                if (parts.length >= 3) {
+                  const sourceFile = parts.slice(1, -1).join(':');
+                  const ref = sourceReferences.find(r => r.sourceFile === sourceFile);
+                  if (ref && onSourceRefClick) {
+                    onSourceRefClick(ref.sourceFile, ref.coveredLines.start);
+                  }
+                } else if (parts.length === 2) {
+                  const sourceFile = parts[1];
+                  const ref = sourceReferences.find(r => r.sourceFile === sourceFile);
+                  if (ref && onSourceRefClick) {
+                    onSourceRefClick(ref.sourceFile, ref.coveredLines.start);
+                  }
+                }
+              }} />
+            </div>
+          )}
+
+          {!hasGraphData && (
+            <div className="mt-lg text-secondary text-center">
+              No test metadata available for this file
+            </div>
+          )}
         </div>
       )}
     </div>
