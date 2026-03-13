@@ -13,14 +13,7 @@ export const PathInput: React.FC<PathInputProps> = ({ path, onChange }) => {
         value={path}
         onChange={(e) => onChange(e.target.value)}
         placeholder="Enter path..."
-        style={{
-          width: '100%',
-          padding: '8px',
-          marginBottom: '16px',
-          border: '1px solid #ddd',
-          borderRadius: '4px',
-          fontFamily: 'monospace',
-        }}
+        className="input input-mono"
       />
     </div>
   );

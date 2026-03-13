@@ -254,7 +254,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
     setTransform(prev => ({ ...prev, scale: Math.max(prev.scale * 0.8, 0.25) }));
   }, []);
 
-  // Get node style based on search
+  // Get node opacity based on search
   const getNodeOpacity = (nodeId: string) => {
     if (!searchTerm.trim()) return 1;
     return matchingNodeIds.has(nodeId) ? 1 : 0.3;
@@ -283,16 +283,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
   }, [positions]);
 
   return (
-    <div
-      style={{
-        width: '100%',
-        background: 'var(--bg-secondary)',
-        borderRadius: 'var(--radius-md)',
-        border: '1px solid var(--border-color)',
-        padding: 'var(--space-md)',
-        position: 'relative',
-      }}
-    >
+    <div className="mind-map-container">
       <MindMapControls
         layout={layout}
         onLayoutChange={setLayout}
@@ -308,11 +299,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
 
       <div
         ref={containerRef}
-        style={{
-          overflow: 'hidden',
-          cursor: isPanning ? 'grabbing' : 'grab',
-          marginTop: 'var(--space-sm)',
-        }}
+        className={`mind-map-viewport ${isPanning ? 'panning' : ''}`}
         onWheel={handleWheel}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -322,14 +309,9 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
         <svg
           ref={svgRef}
           viewBox={`0 0 ${totalWidth} ${totalHeight}`}
+          className="mind-map-svg"
           style={{
-            width: '100%',
-            maxWidth: '800px',
-            height: 'auto',
-            display: 'block',
-            margin: '0 auto',
             transform: `translate(${transform.x}px, ${transform.y}px) scale(${transform.scale})`,
-            transformOrigin: 'center center',
             transition: isPanning ? 'none' : 'transform 0.2s ease-out',
           }}
         >
@@ -385,9 +367,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
                   stroke="var(--border-color)"
                   strokeWidth="2"
                   strokeOpacity="0.6"
-                  style={{
-                    transition: 'all 0.3s ease-out',
-                  }}
+                  className="mind-map-edge"
                 />
 
                 {edgeLabel && (
@@ -396,28 +376,10 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
                     y={labelY - 12}
                     width="200"
                     height="30"
-                    style={{ overflow: 'visible' }}
+                    className="mind-map-edge-label-container"
                   >
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'center',
-                      alignItems: 'center',
-                      width: '100%',
-                      height: '100%'
-                    }}>
-                      <span title={edgeLabel} style={{
-                        background: 'var(--bg-primary)',
-                        border: '1px solid var(--border-color)',
-                        padding: '2px 8px',
-                        borderRadius: '12px',
-                        fontSize: '11px',
-                        color: 'var(--text-secondary)',
-                        boxShadow: '0 1px 2px rgba(0,0,0,0.05)',
-                        whiteSpace: 'nowrap',
-                        maxWidth: '180px',
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis'
-                      }}>
+                    <div className="mind-map-edge-label">
+                      <span title={edgeLabel} className="mind-map-edge-label-text">
                         {edgeLabel}
                       </span>
                     </div>
@@ -466,7 +428,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
                   height={nodeHeight}
                   rx="8"
                   fill={fill}
-                  style={{ transition: 'all 0.3s ease-out' }}
+                  className="mind-map-node-rect"
                 />
                 <text
                   x={pos.x}
@@ -476,7 +438,7 @@ export const MindMap: React.FC<MindMapProps> = ({ data, onNodeClick }) => {
                   fill="white"
                   fontSize={fontSize}
                   fontWeight={fontWeight}
-                  style={{ pointerEvents: 'none', userSelect: 'none' }}
+                  className="mind-map-node-text"
                 >
                   {displayLabel}
                 </text>

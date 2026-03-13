@@ -216,18 +216,6 @@ function App() {
     })
     : tests;
 
-  const tabButtonStyle = (isActive: boolean): React.CSSProperties => ({
-    padding: '8px 16px',
-    border: 'none',
-    borderBottom: isActive ? '2px solid var(--accent-primary)' : '2px solid transparent',
-    backgroundColor: 'transparent',
-    color: isActive ? 'var(--accent-primary)' : 'var(--text-secondary)',
-    cursor: 'pointer',
-    fontSize: '13px',
-    fontWeight: isActive ? '600' : '500',
-    transition: 'all 0.15s ease',
-  });
-
   const unresolvedCount = comments.filter(c => !c.resolved).length;
 
   return (
@@ -265,66 +253,41 @@ function App() {
           />
         }
         right={
-          <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+          <div className="right-panel-wrapper">
             {/* Tab buttons */}
-            <div style={{
-              display: 'flex',
-              borderBottom: '1px solid var(--border-color)',
-              backgroundColor: 'var(--bg-secondary)',
-            }}>
+            <div className="tab-bar">
               <button
                 type="button"
-                style={tabButtonStyle(activeRightTab === 'tests')}
+                className={`tab-button ${activeRightTab === 'tests' ? 'tab-button--active' : ''}`}
                 onClick={() => setActiveRightTab('tests')}
               >
                 Tests
                 {filteredTests.length > 0 && (
-                  <span style={{
-                    marginLeft: '6px',
-                    padding: '1px 6px',
-                    backgroundColor: activeRightTab === 'tests' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                    color: activeRightTab === 'tests' ? 'white' : 'var(--text-tertiary)',
-                    borderRadius: '10px',
-                    fontSize: '11px',
-                  }}>
+                  <span className={`tab-badge ${activeRightTab === 'tests' ? 'tab-badge--active' : ''}`}>
                     {filteredTests.length}
                   </span>
                 )}
               </button>
               <button
                 type="button"
-                style={tabButtonStyle(activeRightTab === 'suggestions')}
+                className={`tab-button ${activeRightTab === 'suggestions' ? 'tab-button--active' : ''}`}
                 onClick={() => setActiveRightTab('suggestions')}
               >
                 Suggestions
                 {suggestions.length > 0 && (
-                  <span style={{
-                    marginLeft: '6px',
-                    padding: '1px 6px',
-                    backgroundColor: activeRightTab === 'suggestions' ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                    color: activeRightTab === 'suggestions' ? 'white' : 'var(--text-tertiary)',
-                    borderRadius: '10px',
-                    fontSize: '11px',
-                  }}>
+                  <span className={`tab-badge ${activeRightTab === 'suggestions' ? 'tab-badge--active' : ''}`}>
                     {suggestions.length}
                   </span>
                 )}
               </button>
               <button
                 type="button"
-                style={tabButtonStyle(activeRightTab === 'comments')}
+                className={`tab-button ${activeRightTab === 'comments' ? 'tab-button--active' : ''}`}
                 onClick={() => setActiveRightTab('comments')}
               >
                 Comments
                 {unresolvedCount > 0 && (
-                  <span style={{
-                    marginLeft: '6px',
-                    padding: '1px 6px',
-                    backgroundColor: activeRightTab === 'comments' ? 'var(--warning)' : 'var(--bg-tertiary)',
-                    color: activeRightTab === 'comments' ? 'white' : 'var(--text-tertiary)',
-                    borderRadius: '10px',
-                    fontSize: '11px',
-                  }}>
+                  <span className={`tab-badge ${activeRightTab === 'comments' ? 'tab-badge--warning' : ''}`}>
                     {unresolvedCount}
                   </span>
                 )}
@@ -332,7 +295,7 @@ function App() {
             </div>
 
             {/* Tab content */}
-            <div style={{ flex: 1, overflow: 'auto', padding: 'var(--space-md)' }}>
+            <div className="tab-content">
               {activeRightTab === 'tests' && (
                 <TestPanel
                   tests={filteredTests}

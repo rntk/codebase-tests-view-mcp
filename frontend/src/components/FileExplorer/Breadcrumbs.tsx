@@ -18,25 +18,10 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ currentPath, onPathCha
     };
 
     return (
-        <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            marginBottom: '16px',
-            fontSize: '13px',
-            color: 'var(--text-secondary)',
-            flexWrap: 'wrap'
-        }}>
+        <div className="breadcrumbs">
             <button
                 onClick={handleRootClick}
-                style={{
-                    color: currentPath === '.' ? 'var(--text-primary)' : 'var(--accent-primary)',
-                    fontWeight: currentPath === '.' ? '600' : '400',
-                    padding: '2px 4px',
-                    borderRadius: 'var(--radius-sm)'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-soft)'}
-                onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                className={`breadcrumb-btn ${currentPath === '.' ? 'breadcrumb-btn--root' : ''}`}
             >
                 root
             </button>
@@ -46,14 +31,7 @@ export const Breadcrumbs: React.FC<BreadcrumbsProps> = ({ currentPath, onPathCha
                     <span>/</span>
                     <button
                         onClick={() => handleSegmentClick(index)}
-                        style={{
-                            color: index === segments.length - 1 ? 'var(--text-primary)' : 'var(--accent-primary)',
-                            fontWeight: index === segments.length - 1 ? '600' : '400',
-                            padding: '2px 4px',
-                            borderRadius: 'var(--radius-sm)'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-soft)'}
-                        onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                        className={`breadcrumb-btn ${index === segments.length - 1 ? 'breadcrumb-btn--current' : ''}`}
                     >
                         {segment}
                     </button>

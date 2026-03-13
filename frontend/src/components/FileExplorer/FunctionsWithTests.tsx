@@ -26,7 +26,7 @@ export const FunctionsWithTests: React.FC<FunctionsWithTestsProps> = ({
 
   if (loading) {
     return (
-      <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+      <div className="loading-state">
         Loading functions...
       </div>
     );
@@ -34,15 +34,7 @@ export const FunctionsWithTests: React.FC<FunctionsWithTestsProps> = ({
 
   if (error) {
     return (
-      <div
-        style={{
-          padding: 'var(--space-md)',
-          color: 'var(--error)',
-          backgroundColor: '#fef2f2',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px',
-        }}
-      >
+      <div className="error-state">
         Error: {error}
       </div>
     );
@@ -62,13 +54,7 @@ export const FunctionsWithTests: React.FC<FunctionsWithTestsProps> = ({
 
   if (functions.length === 0) {
     return (
-      <div
-        style={{
-          padding: 'var(--space-md)',
-          color: 'var(--text-tertiary)',
-          textAlign: 'center',
-        }}
-      >
+      <div className="empty-state">
         No functions with tests found
       </div>
     );
@@ -94,116 +80,42 @@ export const FunctionsWithTests: React.FC<FunctionsWithTestsProps> = ({
         return (
           <div
             key={functionName}
-            style={{
-              marginBottom: 'var(--space-sm)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-md)',
-              overflow: 'hidden',
-            }}
+            className="function-accordion"
           >
             {/* Function header */}
             <div
-              style={{
-                padding: 'var(--space-sm)',
-                backgroundColor: 'var(--bg-secondary)',
-                display: 'flex',
-                alignItems: 'center',
-                gap: 'var(--space-sm)',
-                cursor: 'pointer',
-                userSelect: 'none',
-              }}
+              className="function-header"
               onClick={() => toggleFunction(functionName)}
             >
               <span
-                style={{
-                  fontSize: '12px',
-                  color: 'var(--text-tertiary)',
-                  transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s ease',
-                }}
+                className={`function-toggle ${isExpanded ? 'function-toggle--expanded' : ''}`}
               >
                 ▶
               </span>
-              <span
-                style={{
-                  fontFamily: 'monospace',
-                  fontSize: '13px',
-                  fontWeight: '600',
-                  color: 'var(--text-primary)',
-                  backgroundColor: 'var(--bg-tertiary)',
-                  padding: '2px 8px',
-                  borderRadius: '4px',
-                }}
-              >
+              <span className="function-name">
                 {functionName}
               </span>
-              <span
-                style={{
-                  fontSize: '11px',
-                  color: 'var(--text-tertiary)',
-                  marginLeft: 'auto',
-                }}
-              >
+              <span className="function-test-count">
                 {functionTests.length} test{functionTests.length > 1 ? 's' : ''}
               </span>
             </div>
 
             {/* Tests list */}
             {isExpanded && (
-              <div
-                style={{
-                  padding: 'var(--space-sm)',
-                  backgroundColor: 'var(--bg-primary)',
-                  borderTop: '1px solid var(--border-color)',
-                }}
-              >
+              <div className="function-tests">
                 {functionTests.map((test, index) => (
                   <div
                     key={`${test.testFile}-${test.testName}-${index}`}
-                    style={{
-                      padding: 'var(--space-xs)',
-                      marginBottom: 'var(--space-xs)',
-                      backgroundColor: 'var(--bg-secondary)',
-                      borderRadius: 'var(--radius-sm)',
-                      border: '1px solid var(--border-color)',
-                      cursor: 'pointer',
-                      transition: 'all 0.15s ease',
-                    }}
+                    className="test-item-card"
                     onClick={() => onTestClick(test)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-                    }}
                   >
-                    <div
-                      style={{
-                        fontSize: '12px',
-                        fontWeight: '500',
-                        color: 'var(--text-primary)',
-                        marginBottom: '4px',
-                      }}
-                    >
+                    <div className="test-item-title">
                       {test.testName}
                     </div>
-                    <div
-                      style={{
-                        fontSize: '11px',
-                        color: 'var(--text-tertiary)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '4px',
-                      }}
-                    >
+                    <div className="test-item-details">
                       <span>in</span>
                       <span
-                        style={{
-                          fontFamily: 'monospace',
-                          color: 'var(--accent-primary)',
-                          cursor: 'pointer',
-                          textDecoration: 'underline',
-                        }}
+                        className="inline-code-link"
                         onClick={(e) => {
                           e.stopPropagation();
                           onSourceFileClick(test.testFile, test.lineRange?.start ?? 1);
@@ -216,16 +128,7 @@ export const FunctionsWithTests: React.FC<FunctionsWithTestsProps> = ({
                       </span>
                     </div>
                     {test.comment && (
-                      <div
-                        style={{
-                          fontSize: '10px',
-                          color: 'var(--text-secondary)',
-                          marginTop: 'var(--space-xs)',
-                          fontStyle: 'italic',
-                          borderTop: '1px solid var(--border-color)',
-                          paddingTop: 'var(--space-xs)',
-                        }}
-                      >
+                      <div className="test-item-comment">
                         {test.comment}
                       </div>
                     )}

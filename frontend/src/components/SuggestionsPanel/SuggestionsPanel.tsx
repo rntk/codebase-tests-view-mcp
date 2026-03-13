@@ -25,70 +25,38 @@ export const SuggestionsPanel: React.FC<SuggestionsPanelProps> = ({
 
   return (
     <div className="suggestions-panel-container">
-      <h2
-        style={{
-          marginTop: 0,
-          marginBottom: 'var(--space-sm)',
-          fontSize: '16px',
-          fontWeight: '600',
-          color: 'var(--text-primary)',
-        }}
-      >
+      <h2 className="section-title mt-0 mb-sm">
         Test Suggestions
       </h2>
 
       {!loading && !error && suggestions.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            gap: 'var(--space-sm)',
-            marginBottom: 'var(--space-md)',
-            fontSize: '11px',
-          }}
-        >
+        <div className="priority-stats">
           {highCount > 0 && (
-            <span style={{ color: '#dc2626' }}>{highCount} high</span>
+            <span className="priority-stat--high">{highCount} high</span>
           )}
           {mediumCount > 0 && (
-            <span style={{ color: '#d97706' }}>{mediumCount} medium</span>
+            <span className="priority-stat--medium">{mediumCount} medium</span>
           )}
           {lowCount > 0 && (
-            <span style={{ color: '#16a34a' }}>{lowCount} low</span>
+            <span className="priority-stat--low">{lowCount} low</span>
           )}
         </div>
       )}
 
       {loading && (
-        <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+        <div className="loading-state">
           Loading suggestions...
         </div>
       )}
 
       {error && (
-        <div
-          style={{
-            padding: 'var(--space-md)',
-            color: 'var(--error)',
-            backgroundColor: '#fef2f2',
-            borderRadius: 'var(--radius-md)',
-            fontSize: '13px',
-          }}
-        >
+        <div className="error-state">
           Error: {error}
         </div>
       )}
 
       {!loading && !error && suggestions.length === 0 && (
-        <div
-          style={{
-            padding: 'var(--space-lg) var(--space-md)',
-            color: 'var(--text-tertiary)',
-            textAlign: 'center',
-            backgroundColor: 'var(--bg-primary)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px dashed var(--border-color)',
-          }}
-        >
+        <div className="empty-state">
           No test suggestions for this file
         </div>
       )}

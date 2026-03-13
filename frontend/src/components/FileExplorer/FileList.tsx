@@ -46,28 +46,18 @@ export const FileList: React.FC<FileListProps> = ({
 
   return (
     <div className="file-list-container">
-      <h2 style={{
-        marginTop: 0,
-        marginBottom: 'var(--space-md)',
-        fontSize: '16px',
-        fontWeight: '600',
-        color: 'var(--text-primary)'
-      }}>
+      <h2 className="section-title mt-0 mb-md">
         Explorer
       </h2>
 
       <Breadcrumbs currentPath={path} onPathChange={onPathChange} />
 
-      <div style={{ marginBottom: 'var(--space-md)' }}>
+      <div className="mb-md">
         <PathInput path={path} onChange={onPathChange} />
       </div>
 
       {/* Tab buttons */}
-      <div style={{
-        display: 'flex',
-        borderBottom: '1px solid var(--border-color)',
-        marginBottom: 'var(--space-md)',
-      }}>
+      <div className="tab-bar">
         <TabButton
           label="Files"
           isActive={activeTab === 'files'}
@@ -92,19 +82,13 @@ export const FileList: React.FC<FileListProps> = ({
       {activeTab === 'files' && (
         <>
           {loading && (
-            <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+            <div className="loading-state">
               Loading files...
             </div>
           )}
 
           {error && (
-            <div style={{
-              padding: 'var(--space-md)',
-              color: 'var(--error)',
-              backgroundColor: '#fef2f2',
-              borderRadius: 'var(--radius-md)',
-              fontSize: '13px'
-            }}>
+            <div className="error-state">
               Error: {error}
             </div>
           )}
@@ -112,7 +96,7 @@ export const FileList: React.FC<FileListProps> = ({
           {!loading && !error && (
             <div className="file-items">
               {files.length === 0 && (
-                <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)', textAlign: 'center' }}>
+                <div className="empty-state">
                   No files found in this directory
                 </div>
               )}

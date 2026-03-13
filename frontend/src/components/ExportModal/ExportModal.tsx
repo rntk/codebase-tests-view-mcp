@@ -35,157 +35,52 @@ export const ExportModal: React.FC<ExportModalProps> = ({
   return (
     <div
       onClick={handleBackdropClick}
-      style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 1000,
-      }}
+      className="modal-backdrop"
     >
-      <div
-        style={{
-          backgroundColor: 'var(--bg-primary)',
-          borderRadius: 'var(--radius-lg)',
-          width: '90%',
-          maxWidth: '800px',
-          maxHeight: '90vh',
-          display: 'flex',
-          flexDirection: 'column',
-          boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
-        }}
-      >
+      <div className="modal-content">
         {/* Header */}
-        <div
-          style={{
-            padding: 'var(--space-md) var(--space-lg)',
-            borderBottom: '1px solid var(--border-color)',
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-          }}
-        >
-          <h2
-            style={{
-              margin: 0,
-              fontSize: '18px',
-              fontWeight: '600',
-              color: 'var(--text-primary)',
-            }}
-          >
+        <div className="panel-header">
+          <h2 className="panel-title">
             Export for AI Agent
           </h2>
           <button
             onClick={onClose}
-            style={{
-              backgroundColor: 'transparent',
-              border: 'none',
-              fontSize: '24px',
-              color: 'var(--text-secondary)',
-              cursor: 'pointer',
-              padding: '4px 8px',
-              lineHeight: 1,
-            }}
+            className="btn-icon btn-icon--close"
           >
             ×
           </button>
         </div>
 
         {/* Content */}
-        <div
-          style={{
-            padding: 'var(--space-lg)',
-            overflow: 'auto',
-            flex: 1,
-          }}
-        >
+        <div className="panel-content">
           {loading && (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: 'var(--space-xl)',
-                color: 'var(--text-tertiary)',
-              }}
-            >
+            <div className="empty-state">
               Generating export...
             </div>
           )}
 
           {!loading && !exportData && (
-            <div
-              style={{
-                textAlign: 'center',
-                padding: 'var(--space-xl)',
-                color: 'var(--text-tertiary)',
-              }}
-            >
+            <div className="empty-state">
               No data to export
             </div>
           )}
 
           {!loading && exportData && (
             <>
-              <div
-                style={{
-                  marginBottom: 'var(--space-md)',
-                  padding: 'var(--space-md)',
-                  backgroundColor: 'var(--bg-secondary)',
-                  borderRadius: 'var(--radius-md)',
-                  fontSize: '13px',
-                  color: 'var(--text-secondary)',
-                }}
-              >
+              <div className="tip-box">
                 <strong>Tip:</strong> Copy this formatted context and paste it directly into your AI
                 coding assistant. It includes code context, comments, test information, and
                 suggestions.
               </div>
 
-              <div
-                style={{
-                  position: 'relative',
-                  backgroundColor: '#1e1e1e',
-                  borderRadius: 'var(--radius-md)',
-                  overflow: 'hidden',
-                }}
-              >
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: 'var(--space-sm) var(--space-md)',
-                    backgroundColor: '#2d2d2d',
-                    borderBottom: '1px solid #3d3d3d',
-                  }}
-                >
-                  <span
-                    style={{
-                      fontSize: '12px',
-                      color: '#9e9e9e',
-                      fontFamily: 'var(--font-mono)',
-                    }}
-                  >
+              <div className="code-block-dark">
+                <div className="code-block-header">
+                  <span className="code-block-filename">
                     {exportData.sourceFile}
                   </span>
                   <button
                     onClick={handleCopy}
-                    style={{
-                      padding: '6px 12px',
-                      backgroundColor: copied ? 'var(--success)' : 'var(--accent-primary)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
+                    className={`btn ${copied ? 'btn-success' : 'btn-primary'}`}
                   >
                     {copied ? (
                       <>
@@ -205,34 +100,13 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                     )}
                   </button>
                 </div>
-                <pre
-                  style={{
-                    margin: 0,
-                    padding: 'var(--space-md)',
-                    fontSize: '13px',
-                    lineHeight: 1.6,
-                    color: '#d4d4d4',
-                    fontFamily: 'var(--font-mono)',
-                    overflow: 'auto',
-                    maxHeight: '50vh',
-                    whiteSpace: 'pre-wrap',
-                    wordWrap: 'break-word',
-                  }}
-                >
+                <pre className="code-block-content">
                   {exportData.formatted}
                 </pre>
               </div>
 
               {/* Stats */}
-              <div
-                style={{
-                  display: 'flex',
-                  gap: 'var(--space-md)',
-                  marginTop: 'var(--space-md)',
-                  fontSize: '12px',
-                  color: 'var(--text-secondary)',
-                }}
-              >
+              <div className="export-stats">
                 <span>
                   <strong>{exportData.codeContext.length}</strong> comment blocks
                 </span>
@@ -252,25 +126,10 @@ export const ExportModal: React.FC<ExportModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div
-          style={{
-            padding: 'var(--space-md) var(--space-lg)',
-            borderTop: '1px solid var(--border-color)',
-            display: 'flex',
-            justifyContent: 'flex-end',
-          }}
-        >
+        <div className="panel-footer">
           <button
             onClick={onClose}
-            style={{
-              padding: '8px 16px',
-              backgroundColor: 'var(--bg-secondary)',
-              color: 'var(--text-primary)',
-              border: '1px solid var(--border-color)',
-              borderRadius: 'var(--radius-sm)',
-              fontSize: '14px',
-              cursor: 'pointer',
-            }}
+            className="btn btn-secondary"
           >
             Close
           </button>

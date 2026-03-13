@@ -12,43 +12,24 @@ interface TestPanelProps {
 export const TestPanel: React.FC<TestPanelProps> = ({ tests, loading, error, highlightedTestIds }) => {
   return (
     <div className="test-panel-container">
-      <h2 style={{
-        marginTop: 0,
-        marginBottom: 'var(--space-md)',
-        fontSize: '16px',
-        fontWeight: '600',
-        color: 'var(--text-primary)'
-      }}>
+      <h2 className="section-title mt-0 mb-md">
         Related Tests
       </h2>
 
       {loading && (
-        <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+        <div className="loading-state">
           Loading tests...
         </div>
       )}
 
       {error && (
-        <div style={{
-          padding: 'var(--space-md)',
-          color: 'var(--error)',
-          backgroundColor: '#fef2f2',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px'
-        }}>
+        <div className="error-state">
           Error: {error}
         </div>
       )}
 
       {!loading && !error && tests.length === 0 && (
-        <div style={{
-          padding: 'var(--space-lg) var(--space-md)',
-          color: 'var(--text-tertiary)',
-          textAlign: 'center',
-          backgroundColor: 'var(--bg-primary)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px dashed var(--border-color)'
-        }}>
+        <div className="empty-state">
           No tests found for this file
         </div>
       )}

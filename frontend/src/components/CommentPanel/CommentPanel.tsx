@@ -34,8 +34,8 @@ export const CommentPanel: React.FC<CommentPanelProps> = ({
   const [showResolved, setShowResolved] = useState(false);
   const [copiedCommentId, setCopiedCommentId] = useState<string | null>(null);
 
-  const filteredComments = showResolved 
-    ? comments 
+  const filteredComments = showResolved
+    ? comments
     : comments.filter(c => !c.resolved);
 
   const sortedComments = [...filteredComments].sort((a, b) => {
@@ -103,48 +103,19 @@ Please review this code and the associated comment. Fix any issues or make impro
   };
 
   return (
-    <div className="comment-panel-container" style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      <div style={{ 
-        display: 'flex', 
-        justifyContent: 'space-between', 
-        alignItems: 'center',
-        marginBottom: 'var(--space-md)',
-        padding: '0 var(--space-sm)'
-      }}>
-        <h2 style={{
-          margin: 0,
-          fontSize: '16px',
-          fontWeight: '600',
-          color: 'var(--text-primary)'
-        }}>
+    <div className="comment-panel-container">
+      <div className="comment-panel-header">
+        <h2 className="comment-panel-title">
           Comments
           {unresolvedCount > 0 && (
-            <span style={{
-              marginLeft: '8px',
-              padding: '2px 8px',
-              backgroundColor: 'var(--warning)',
-              color: 'white',
-              borderRadius: '10px',
-              fontSize: '11px',
-            }}>
+            <span className="badge badge-warning">
               {unresolvedCount}
             </span>
           )}
         </h2>
         <button
           onClick={onExportForAI}
-          style={{
-            padding: '6px 12px',
-            backgroundColor: 'var(--accent-primary)',
-            color: 'white',
-            border: 'none',
-            borderRadius: 'var(--radius-sm)',
-            fontSize: '12px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
+          className="btn btn-primary"
           title="Export comments and context for AI agent"
         >
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -159,68 +130,35 @@ Please review this code and the associated comment. Fix any issues or make impro
       </div>
 
       {loading && (
-        <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+        <div className="loading-state">
           Loading comments...
         </div>
       )}
 
       {error && (
-        <div style={{
-          padding: 'var(--space-md)',
-          color: 'var(--error)',
-          backgroundColor: '#fef2f2',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px',
-          marginBottom: 'var(--space-md)'
-        }}>
+        <div className="error-state">
           Error: {error}
         </div>
       )}
 
       {/* Add new comment form */}
       {selectedLine && (
-        <form onSubmit={handleSubmit} style={{ marginBottom: 'var(--space-md)' }}>
-          <div style={{
-            padding: 'var(--space-sm)',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-color)',
-          }}>
-            <div style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              marginBottom: 'var(--space-xs)',
-            }}>
+        <form onSubmit={handleSubmit} className="comment-form">
+          <div className="comment-form-wrapper">
+            <div className="comment-form-label">
               Adding comment on line {selectedLine}
             </div>
             <textarea
               value={newCommentContent}
               onChange={(e) => setNewCommentContent(e.target.value)}
               placeholder="Enter your comment..."
-              style={{
-                width: '100%',
-                minHeight: '60px',
-                padding: 'var(--space-sm)',
-                border: '1px solid var(--border-color)',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '13px',
-                resize: 'vertical',
-                fontFamily: 'inherit',
-              }}
+              className="textarea"
             />
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 'var(--space-sm)', marginTop: 'var(--space-sm)' }}>
+            <div className="comment-form-actions">
               <button
                 type="submit"
                 disabled={!newCommentContent.trim()}
-                style={{
-                  padding: '6px 12px',
-                  backgroundColor: newCommentContent.trim() ? 'var(--accent-primary)' : 'transparent',
-                  color: newCommentContent.trim() ? 'white' : 'var(--text-secondary)',
-                  border: newCommentContent.trim() ? 'none' : '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  fontSize: '12px',
-                  cursor: newCommentContent.trim() ? 'pointer' : 'not-allowed',
-                }}
+                className={`btn btn-sm ${newCommentContent.trim() ? 'btn-primary' : 'btn-ghost'}`}
               >
                 Add Comment
               </button>
@@ -230,30 +168,15 @@ Please review this code and the associated comment. Fix any issues or make impro
       )}
 
       {!selectedLine && comments.length === 0 && !loading && (
-        <div style={{
-          padding: 'var(--space-lg) var(--space-md)',
-          color: 'var(--text-tertiary)',
-          textAlign: 'center',
-          backgroundColor: 'var(--bg-primary)',
-          borderRadius: 'var(--radius-md)',
-          border: '1px dashed var(--border-color)',
-        }}>
+        <div className="empty-state">
           Click on a line number to add a comment
         </div>
       )}
 
       {/* Comments list */}
-      <div style={{ flex: 1, overflow: 'auto' }}>
+      <div className="flex-1 overflow-auto">
         {resolvedCount > 0 && (
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-xs)',
-            fontSize: '12px',
-            color: 'var(--text-secondary)',
-            marginBottom: 'var(--space-sm)',
-            cursor: 'pointer',
-          }}>
+          <label className="checkbox-label show-resolved-toggle">
             <input
               type="checkbox"
               checked={showResolved}
@@ -264,12 +187,7 @@ Please review this code and the associated comment. Fix any issues or make impro
         )}
 
         {sortedComments.length === 0 && !loading && comments.length > 0 && (
-          <div style={{
-            padding: 'var(--space-md)',
-            color: 'var(--text-tertiary)',
-            textAlign: 'center',
-            fontSize: '13px',
-          }}>
+          <div className="empty-state">
             No unresolved comments
           </div>
         )}
@@ -277,51 +195,22 @@ Please review this code and the associated comment. Fix any issues or make impro
         {sortedComments.map((comment) => (
           <div
             key={comment.id}
-            style={{
-              marginBottom: 'var(--space-md)',
-              padding: 'var(--space-md)',
-              backgroundColor: comment.resolved ? 'var(--bg-secondary)' : 'var(--bg-primary)',
-              borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border-color)',
-              opacity: comment.resolved ? 0.7 : 1,
-            }}
+            className={`comment-item ${comment.resolved ? 'comment-item--resolved' : ''}`}
           >
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'flex-start',
-              marginBottom: 'var(--space-xs)',
-            }}>
-              <div style={{
-                fontSize: '12px',
-                fontWeight: '600',
-                color: 'var(--text-secondary)',
-              }}>
+            <div className="comment-item-header">
+              <div className="comment-item-line">
                 Line {comment.line}
                 {comment.resolved && (
-                  <span style={{
-                    marginLeft: '8px',
-                    padding: '2px 6px',
-                    backgroundColor: 'var(--success)',
-                    color: 'white',
-                    borderRadius: '4px',
-                    fontSize: '10px',
-                  }}>
+                  <span className="comment-item-resolved-badge">
                     Resolved
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: 'var(--space-xs)' }}>
+              <div className="comment-item-actions">
                 <button
                   onClick={() => onToggleResolved(comment.id)}
                   title={comment.resolved ? 'Mark as unresolved' : 'Mark as resolved'}
-                  style={{
-                    padding: '4px',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: comment.resolved ? 'var(--warning)' : 'var(--success)',
-                  }}
+                  className={`btn-icon ${comment.resolved ? 'btn-icon--warning' : 'btn-icon--success'}`}
                 >
                   {comment.resolved ? '↩' : '✓'}
                 </button>
@@ -329,13 +218,7 @@ Please review this code and the associated comment. Fix any issues or make impro
                   <button
                     onClick={() => startEditing(comment)}
                     title="Edit"
-                    style={{
-                      padding: '4px',
-                      backgroundColor: 'transparent',
-                      border: 'none',
-                      cursor: 'pointer',
-                      color: 'var(--text-secondary)',
-                    }}
+                    className="btn-icon"
                   >
                     ✎
                   </button>
@@ -343,26 +226,14 @@ Please review this code and the associated comment. Fix any issues or make impro
                 <button
                   onClick={() => onDeleteComment(comment.id)}
                   title="Delete"
-                  style={{
-                    padding: '4px',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: 'var(--error)',
-                  }}
+                  className="btn-icon btn-icon--error"
                 >
                   ×
                 </button>
                 <button
                   onClick={() => handleExportCommentForAI(comment)}
                   title={copiedCommentId === comment.id ? 'Copied!' : 'Copy for LLM agent'}
-                  style={{
-                    padding: '4px',
-                    backgroundColor: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    color: copiedCommentId === comment.id ? 'var(--success)' : 'var(--accent-primary)',
-                  }}
+                  className={`btn-icon ${copiedCommentId === comment.id ? 'btn-icon--success' : ''}`}
                 >
                   {copiedCommentId === comment.id ? (
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -383,65 +254,31 @@ Please review this code and the associated comment. Fix any issues or make impro
                 <textarea
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  style={{
-                    width: '100%',
-                    minHeight: '60px',
-                    padding: 'var(--space-sm)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: 'var(--radius-sm)',
-                    fontSize: '13px',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                    marginBottom: 'var(--space-xs)',
-                  }}
+                  className="textarea mb-sm"
                 />
-                <div style={{ display: 'flex', gap: 'var(--space-sm)', justifyContent: 'flex-end' }}>
+                <div className="comment-form-actions">
                   <button
                     onClick={cancelEdit}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: 'transparent',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '12px',
-                      cursor: 'pointer',
-                    }}
+                    className="btn btn-sm btn-ghost"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={saveEdit}
                     disabled={!editContent.trim()}
-                    style={{
-                      padding: '4px 8px',
-                      backgroundColor: editContent.trim() ? 'var(--accent-primary)' : 'var(--bg-tertiary)',
-                      color: editContent.trim() ? 'white' : 'var(--text-tertiary)',
-                      border: 'none',
-                      borderRadius: 'var(--radius-sm)',
-                      fontSize: '12px',
-                      cursor: editContent.trim() ? 'pointer' : 'not-allowed',
-                    }}
+                    className={`btn btn-sm ${editContent.trim() ? 'btn-primary' : 'btn-ghost'}`}
                   >
                     Save
                   </button>
                 </div>
               </div>
             ) : (
-              <div style={{
-                fontSize: '13px',
-                color: 'var(--text-primary)',
-                lineHeight: 1.5,
-                whiteSpace: 'pre-wrap',
-              }}>
+              <div className="comment-item-content">
                 {comment.content}
               </div>
             )}
 
-            <div style={{
-              fontSize: '11px',
-              color: 'var(--text-tertiary)',
-              marginTop: 'var(--space-xs)',
-            }}>
+            <div className="comment-item-meta">
               {new Date(comment.createdAt).toLocaleString()}
             </div>
           </div>

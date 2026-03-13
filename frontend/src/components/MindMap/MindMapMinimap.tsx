@@ -40,23 +40,10 @@ export const MindMapMinimap: React.FC<MindMapMinimapProps> = ({
   const viewportY = (totalHeight * minimapScale - viewportHeight) / 2 - (transform.y / transform.scale) * minimapScale;
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 'var(--space-md)',
-        right: 'var(--space-md)',
-        width: minimapWidth,
-        height: minimapHeight,
-        backgroundColor: 'var(--bg-primary)',
-        border: '1px solid var(--border-color)',
-        borderRadius: 'var(--radius-sm)',
-        overflow: 'hidden',
-        boxShadow: 'var(--shadow-md)',
-      }}
-    >
+    <div className="mind-map-minimap">
       <svg
         viewBox={`0 0 ${totalWidth * minimapScale} ${totalHeight * minimapScale}`}
-        style={{ width: '100%', height: '100%' }}
+        className="mind-map-minimap-svg"
       >
         {/* Background */}
         <rect

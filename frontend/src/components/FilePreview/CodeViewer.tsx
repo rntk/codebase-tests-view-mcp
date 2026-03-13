@@ -196,7 +196,7 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
             </span>
           ))}
         </div>
-        
+
         {/* Coverage gutter */}
         {hasCoverageData && (
           <div className="coverage-gutter">
@@ -217,44 +217,22 @@ export const CodeViewer: React.FC<CodeViewerProps> = ({
 
         {/* Comment gutter */}
         {hasComments && (
-          <div className="comment-gutter" style={{
-            display: 'flex',
-            flexDirection: 'column',
-            minWidth: '24px',
-            padding: '4px 0',
-          }}>
+          <div className="comment-gutter">
             {lines.map((_, index) => {
               const lineNum = index + 1;
               const lineComments = lineToComments.get(lineNum);
               const hasComment = lineComments && lineComments.length > 0;
-              
+
               return (
                 <div
                   key={lineNum}
-                  style={{
-                    height: '20px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
+                  className="comment-gutter-item"
                   title={hasComment ? `Comment: ${lineComments![0].content.substring(0, 50)}...` : undefined}
                 >
                   {hasComment && (
-                    <span style={{
-                      width: '8px',
-                      height: '8px',
-                      borderRadius: '50%',
-                      backgroundColor: 'var(--warning)',
-                      cursor: 'pointer',
-                    }}>
+                    <span className="comment-indicator">
                       {lineComments!.length > 1 && (
-                        <span style={{
-                          position: 'absolute',
-                          fontSize: '9px',
-                          color: 'var(--warning)',
-                          marginLeft: '10px',
-                          marginTop: '-2px',
-                        }}>
+                        <span className="comment-count">
                           {lineComments!.length}
                         </span>
                       )}

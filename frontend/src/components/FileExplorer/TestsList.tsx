@@ -18,7 +18,7 @@ export const TestsList: React.FC<TestsListProps> = ({
 }) => {
   if (loading) {
     return (
-      <div style={{ padding: 'var(--space-md)', color: 'var(--text-tertiary)' }}>
+      <div className="loading-state">
         Loading tests...
       </div>
     );
@@ -26,15 +26,7 @@ export const TestsList: React.FC<TestsListProps> = ({
 
   if (error) {
     return (
-      <div
-        style={{
-          padding: 'var(--space-md)',
-          color: 'var(--error)',
-          backgroundColor: '#fef2f2',
-          borderRadius: 'var(--radius-md)',
-          fontSize: '13px',
-        }}
-      >
+      <div className="error-state">
         Error: {error}
       </div>
     );
@@ -42,13 +34,7 @@ export const TestsList: React.FC<TestsListProps> = ({
 
   if (tests.length === 0) {
     return (
-      <div
-        style={{
-          padding: 'var(--space-md)',
-          color: 'var(--text-tertiary)',
-          textAlign: 'center',
-        }}
-      >
+      <div className="empty-state">
         No tests found in this directory
       </div>
     );
@@ -59,68 +45,21 @@ export const TestsList: React.FC<TestsListProps> = ({
       {tests.map((test, index) => (
         <div
           key={`${test.testFile}-${test.testName}-${index}`}
-          style={{
-            padding: 'var(--space-sm)',
-            marginBottom: 'var(--space-sm)',
-            backgroundColor: 'var(--bg-secondary)',
-            borderRadius: 'var(--radius-md)',
-            border: '1px solid var(--border-color)',
-            cursor: 'pointer',
-            transition: 'all 0.15s ease',
-          }}
+          className="test-item-card"
           onClick={() => onTestClick(test)}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.backgroundColor = 'var(--bg-secondary)';
-          }}
         >
-          <div
-            style={{
-              fontSize: '13px',
-              fontWeight: '600',
-              color: 'var(--text-primary)',
-              marginBottom: '4px',
-            }}
-          >
+          <div className="test-item-title">
             {test.testName}
           </div>
-          <div
-            style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary)',
-              marginBottom: '4px',
-            }}
-          >
-            <span
-              style={{
-                fontFamily: 'monospace',
-                backgroundColor: 'var(--bg-tertiary)',
-                padding: '2px 6px',
-                borderRadius: '4px',
-              }}
-            >
+          <div className="test-item-meta">
+            <span className="inline-code">
               {test.functionName}
             </span>
           </div>
-          <div
-            style={{
-              fontSize: '11px',
-              color: 'var(--text-tertiary)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '4px',
-            }}
-          >
+          <div className="test-item-details">
             <span>in</span>
             <span
-              style={{
-                fontFamily: 'monospace',
-                color: 'var(--accent-primary)',
-                cursor: 'pointer',
-                textDecoration: 'underline',
-              }}
+              className="inline-code-link"
               onClick={(e) => {
                 e.stopPropagation();
                 onSourceFileClick(test.testFile, test.lineRange?.start ?? 1);
@@ -133,16 +72,7 @@ export const TestsList: React.FC<TestsListProps> = ({
             </span>
           </div>
           {test.comment && (
-            <div
-              style={{
-                fontSize: '11px',
-                color: 'var(--text-secondary)',
-                marginTop: 'var(--space-xs)',
-                fontStyle: 'italic',
-                borderTop: '1px solid var(--border-color)',
-                paddingTop: 'var(--space-xs)',
-              }}
-            >
+            <div className="test-item-comment">
               {test.comment}
             </div>
           )}

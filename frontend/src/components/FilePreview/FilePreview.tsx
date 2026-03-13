@@ -37,11 +37,11 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
   }
 
   if (error) {
-    return <div style={{ color: 'red' }}>Error: {error}</div>;
+    return <div className="text-error">Error: {error}</div>;
   }
 
   if (!file) {
-    return <div style={{ color: '#666' }}>Select a file to view its content</div>;
+    return <div className="text-secondary">Select a file to view its content</div>;
   }
 
   // Build mind map data from file metadata
@@ -124,25 +124,16 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       />
 
       {hasTests && (
-        <div style={{ marginTop: '24px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '16px' }}>
+        <div className="mt-lg">
+          <div className="file-preview-actions">
+            <h3 className="section-title">
               Test Coverage
             </h3>
             {selectedLine !== null && selectedLine !== undefined && onResetLineFilter && (
               <button
                 type="button"
                 onClick={onResetLineFilter}
-                style={{
-                  padding: '6px 10px',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: 'var(--radius-sm)',
-                  backgroundColor: 'var(--bg-primary)',
-                  color: 'var(--text-secondary)',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  transition: 'all 0.15s ease',
-                }}
+                className="btn btn-ghost"
                 title="Clear line filter and show all functions"
               >
                 Show all functions
@@ -154,12 +145,12 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       )}
 
       {hasSourceRefs && reverseMindMapData && (
-        <div style={{ marginTop: '24px' }}>
-          <div style={{ marginBottom: '16px' }}>
-            <h3 style={{ margin: 0, fontSize: '16px' }}>
+        <div className="mt-lg">
+          <div className="mb-md">
+            <h3 className="section-title">
               Source Coverage
             </h3>
-            <p style={{ margin: '4px 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>
+            <p className="text-secondary text-xs m-0">
               Click highlighted lines to navigate to the source function
             </p>
           </div>
@@ -184,7 +175,7 @@ export const FilePreview: React.FC<FilePreviewProps> = ({
       )}
 
       {!hasTests && !hasSourceRefs && (
-        <div style={{ marginTop: '24px', color: '#666', textAlign: 'center' }}>
+        <div className="mt-lg text-secondary text-center">
           No test metadata available for this file
         </div>
       )}
