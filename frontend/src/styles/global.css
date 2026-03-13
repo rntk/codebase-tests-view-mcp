@@ -427,6 +427,19 @@ a {
   background-color: var(--bg-secondary);
 }
 
+.file-list-subtabs {
+  display: flex;
+  gap: var(--space-xs);
+  padding: 0 var(--space-md);
+  border-bottom: 1px solid var(--border-color);
+  background-color: var(--bg-primary);
+}
+
+.file-list-subtabs .tab-button {
+  padding: 10px 12px 8px;
+  font-size: 12px;
+}
+
 .tab-content {
   flex: 1;
   overflow: auto;

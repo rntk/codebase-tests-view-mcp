@@ -9,7 +9,8 @@ import { ProjectOverview } from './ProjectOverview';
 import type { FileEntry, TestDetail, OverviewResponse } from '../../types';
 import { groupTestsByFunction } from '../../utils/testUtils';
 
-type ExplorerTab = 'overview' | 'files' | 'tests' | 'functions';
+type ExplorerTab = 'overview' | 'files';
+type FilesSubview = 'files' | 'tests' | 'functions';
 
 interface FileListProps {
   path: string;
@@ -48,6 +49,7 @@ export const FileList: React.FC<FileListProps> = ({
   overviewError,
 }) => {
   const [activeTab, setActiveTab] = useState<ExplorerTab>('overview');
+  const [activeFilesSubview, setActiveFilesSubview] = useState<FilesSubview>('files');
 
   // Group tests by function name for the functions tab (using shared utility)
   const functionsWithTests = useMemo(() => groupTestsByFunction(tests), [tests]);
@@ -72,18 +74,6 @@ export const FileList: React.FC<FileListProps> = ({
             onClick={() => setActiveTab('files')}
             badge={files.length}
           />
-          <TabButton
-            label="Tests"
-            isActive={activeTab === 'tests'}
-            onClick={() => setActiveTab('tests')}
-            badge={tests.length}
-          />
-          <TabButton
-            label="Functions"
-            isActive={activeTab === 'functions'}
-            onClick={() => setActiveTab('functions')}
-            badge={functionsWithTests.size}
-          />
         </div>
       </div>
 
@@ -106,61 +96,86 @@ export const FileList: React.FC<FileListProps> = ({
             <Breadcrumbs currentPath={path} onPathChange={onPathChange} />
           </div>
 
+          <div className="file-list-subtabs">
+            <TabButton
+              label="Files"
+              isActive={activeFilesSubview === 'files'}
+              onClick={() => setActiveFilesSubview('files')}
+              badge={files.length}
+            />
+            <TabButton
+              label="Tests"
+              isActive={activeFilesSubview === 'tests'}
+              onClick={() => setActiveFilesSubview('tests')}
+              badge={tests.length}
+            />
+            <TabButton
+              label="Functions"
+              isActive={activeFilesSubview === 'functions'}
+              onClick={() => setActiveFilesSubview('functions')}
+              badge={functionsWithTests.size}
+            />
+          </div>
+
           <div className="file-list-files-body">
-            {loading && (
-              <div className="loading-state">
-                Loading files...
-              </div>
-            )}
-
-            {error && (
-              <div className="error-state">
-                Error: {error}
-              </div>
-            )}
-
-            {!loading && !error && (
-              <div className="file-items">
-                {files.length === 0 && (
-                  <div className="empty-state">
-                    No files found in this directory
+            {activeFilesSubview === 'files' && (
+              <>
+                {loading && (
+                  <div className="loading-state">
+                    Loading files...
                   </div>
                 )}
-                {files.map((file) => (
-                  <FileItem
-                    key={file.path}
-                    file={file}
-                    onClick={() => onFileClick(file)}
-                    isSelected={selectedPath === file.path}
-                  />
-                ))}
+
+                {error && (
+                  <div className="error-state">
+                    Error: {error}
+                  </div>
+                )}
+
+                {!loading && !error && (
+                  <div className="file-items">
+                    {files.length === 0 && (
+                      <div className="empty-state">
+                        No files found in this directory
+                      </div>
+                    )}
+                    {files.map((file) => (
+                      <FileItem
+                        key={file.path}
+                        file={file}
+                        onClick={() => onFileClick(file)}
+                        isSelected={selectedPath === file.path}
+                      />
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            {activeFilesSubview === 'tests' && (
+              <div className="file-list-tab-scroll">
+                <TestsList
+                  tests={tests}
+                  loading={testsLoading}
+                  error={testsError}
+                  onTestClick={onTestClick}
+                  onSourceFileClick={onSourceFileClick}
+                />
+              </div>
+            )}
+
+            {activeFilesSubview === 'functions' && (
+              <div className="file-list-tab-scroll">
+                <FunctionsWithTests
+                  tests={tests}
+                  loading={testsLoading}
+                  error={testsError}
+                  onTestClick={onTestClick}
+                  onSourceFileClick={onSourceFileClick}
+                />
               </div>
             )}
           </div>
-        </div>
-      )}
-
-      {activeTab === 'tests' && (
-        <div className="file-list-tab-scroll">
-          <TestsList
-            tests={tests}
-            loading={testsLoading}
-            error={testsError}
-            onTestClick={onTestClick}
-            onSourceFileClick={onSourceFileClick}
-          />
-        </div>
-      )}
-
-      {activeTab === 'functions' && (
-        <div className="file-list-tab-scroll">
-          <FunctionsWithTests
-            tests={tests}
-            loading={testsLoading}
-            error={testsError}
-            onTestClick={onTestClick}
-            onSourceFileClick={onSourceFileClick}
-          />
         </div>
       )}
     </div>
