@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { ThreePanel } from './components/Layout/ThreePanel';
 import { FileList } from './components/FileExplorer/FileList';
 import { FilePreview } from './components/FilePreview/FilePreview';
@@ -9,11 +9,12 @@ import { ExportModal } from './components/ExportModal';
 import { useFiles } from './hooks/useFiles';
 import { useFileContent } from './hooks/useFileContent';
 import { useTests } from './hooks/useTests';
+import { useDirectoryTests } from './hooks/useDirectoryTests';
 import { useSuggestions } from './hooks/useSuggestions';
 import { useComments } from './hooks/useComments';
 import { useExport } from './hooks/useExport';
 import { useSources } from './hooks/useSources';
-import type { FileEntry } from './types';
+import type { FileEntry, TestDetail } from './types';
 import { filterItemsByLine } from './utils/testUtils';
 
 type RightPanelTab = 'tests' | 'suggestions' | 'comments';
@@ -81,6 +82,9 @@ function App() {
   // Load files for current directory
   const { files, loading: filesLoading, error: filesError } = useFiles(currentPath);
 
+  // Load tests for all files in the current directory (for the Explorer tabs)
+  const { tests: directoryTests, loading: directoryTestsLoading, error: directoryTestsError } = useDirectoryTests(currentPath, files);
+
   // Load selected file content
   const { file, loading: fileLoading, error: fileError } = useFileContent(selectedFilePath);
 
@@ -143,6 +147,14 @@ function App() {
       return newSet;
     });
   };
+
+  // Handle test click from Explorer tabs
+  const handleExplorerTestClick = useCallback((test: TestDetail) => {
+    // Navigate to the test file
+    setSelectedFilePath(test.testFile);
+    setSelectedLine(test.lineRange?.start ?? null);
+    setHighlightedTestIds(new Set());
+  }, []);
 
   // Handle line selection for filtering
   const handleLineSelect = (lineNum: number) => {
@@ -230,6 +242,11 @@ function App() {
             error={filesError}
             onPathChange={handlePathChange}
             onFileClick={handleFileClick}
+            tests={directoryTests}
+            testsLoading={directoryTestsLoading}
+            testsError={directoryTestsError}
+            onTestClick={handleExplorerTestClick}
+            onSourceFileClick={handleSourceRefClick}
           />
         }
         center={

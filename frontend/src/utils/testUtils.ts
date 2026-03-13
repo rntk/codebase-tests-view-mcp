@@ -1,4 +1,20 @@
-import { LineRange } from '../types';
+import { LineRange, TestDetail } from '../types';
+
+/**
+ * Groups tests by their function name.
+ * Returns a Map where keys are function names and values are arrays of tests.
+ */
+export function groupTestsByFunction(tests: TestDetail[]): Map<string, TestDetail[]> {
+  const grouped = new Map<string, TestDetail[]>();
+  tests.forEach((test) => {
+    const functionName = test.functionName.trim();
+    if (!grouped.has(functionName)) {
+      grouped.set(functionName, []);
+    }
+    grouped.get(functionName)!.push(test);
+  });
+  return grouped;
+}
 
 /**
  * Filters items (tests) based on a selected line.
