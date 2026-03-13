@@ -13,7 +13,7 @@ func GetTools() []Tool {
 				"properties": {
 					"sourceFile": {
 						"type": "string",
-						"description": "Path to the source file being tested"
+						"description": "Repo-relative path to the source file being tested, relative to the server's configured -dir root"
 					},
 					"tests": {
 						"type": "array",
@@ -23,7 +23,7 @@ func GetTools() []Tool {
 							"properties": {
 								"testFile": {
 									"type": "string",
-									"description": "Path to the test file"
+									"description": "Repo-relative path to the test file, relative to the server's configured -dir root"
 								},
 								"functionName": {
 									"type": "string",
@@ -88,7 +88,7 @@ func GetTools() []Tool {
 				"properties": {
 					"sourceFile": {
 						"type": "string",
-						"description": "Path to the source file that needs tests"
+						"description": "Repo-relative path to the source file that needs tests, relative to the server's configured -dir root"
 					},
 					"functionName": {
 						"type": "string",

@@ -1599,3 +1599,68 @@ a {
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+.metadata-issues-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  padding: var(--space-md);
+}
+
+.metadata-issues-summary,
+.metadata-issue-meta,
+.metadata-issue-message {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.metadata-issues-list,
+.metadata-issue-tests {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+
+.metadata-issue-card,
+.metadata-test-issue {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-md);
+  padding: var(--space-md);
+}
+
+.metadata-issue-header,
+.metadata-issue-badges,
+.metadata-issue-edit-row {
+  display: flex;
+  gap: var(--space-sm);
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.metadata-issue-header {
+  justify-content: space-between;
+}
+
+.metadata-issue-title,
+.metadata-test-issue-title {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-secondary);
+  margin-bottom: 4px;
+}
+
+.metadata-link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.metadata-issue-edit-row .search-input {
+  flex: 1;
+  min-width: 220px;
+}

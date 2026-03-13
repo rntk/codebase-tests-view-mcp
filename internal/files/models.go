@@ -179,10 +179,60 @@ type FunctionSummary struct {
 
 // OverviewResponse for GET /api/overview
 type OverviewResponse struct {
-	TotalTests          int               `json:"totalTests"`
-	TotalFunctions      int               `json:"totalFunctions"`
-	TotalSourceFiles    int               `json:"totalSourceFiles"`
-	TotalTestFiles      int               `json:"totalTestFiles"`
-	Functions           []FunctionSummary `json:"functions"`
-	TestsBySourceFile   map[string][]TestDetail `json:"testsBySourceFile"`
+	TotalTests        int                     `json:"totalTests"`
+	TotalFunctions    int                     `json:"totalFunctions"`
+	TotalSourceFiles  int                     `json:"totalSourceFiles"`
+	TotalTestFiles    int                     `json:"totalTestFiles"`
+	Functions         []FunctionSummary       `json:"functions"`
+	TestsBySourceFile map[string][]TestDetail `json:"testsBySourceFile"`
+}
+
+// MetadataIssuesResponse lists invalid metadata-backed path references.
+type MetadataIssuesResponse struct {
+	Issues []MetadataIssue `json:"issues"`
+}
+
+// MetadataIssue groups invalid metadata under a source-file key.
+type MetadataIssue struct {
+	SourceFile        string              `json:"sourceFile"`
+	SourceValid       bool                `json:"sourceValid"`
+	SourceIsAbsolute  bool                `json:"sourceIsAbsolute"`
+	SourceMessage     string              `json:"sourceMessage,omitempty"`
+	SuggestionsCount  int                 `json:"suggestionsCount"`
+	CommentsCount     int                 `json:"commentsCount"`
+	InvalidTestIssues []MetadataTestIssue `json:"invalidTestIssues"`
+}
+
+// MetadataTestIssue describes an invalid test file reference.
+type MetadataTestIssue struct {
+	TestFile   string `json:"testFile"`
+	TestName   string `json:"testName"`
+	IsAbsolute bool   `json:"isAbsolute"`
+	Message    string `json:"message"`
+}
+
+// UpdateSourcePathRequest renames a metadata source path.
+type UpdateSourcePathRequest struct {
+	OldPath string `json:"oldPath"`
+	NewPath string `json:"newPath"`
+}
+
+// UpdateTestPathRequest updates a single test-file reference inside a source entry.
+type UpdateTestPathRequest struct {
+	SourceFile  string `json:"sourceFile"`
+	TestFile    string `json:"testFile"`
+	TestName    string `json:"testName"`
+	NewTestFile string `json:"newTestFile"`
+}
+
+// DeleteSourcePathRequest deletes an entire metadata entry.
+type DeleteSourcePathRequest struct {
+	Path string `json:"path"`
+}
+
+// DeleteTestPathRequest deletes a single test-file reference.
+type DeleteTestPathRequest struct {
+	SourceFile string `json:"sourceFile"`
+	TestFile   string `json:"testFile"`
+	TestName   string `json:"testName"`
 }

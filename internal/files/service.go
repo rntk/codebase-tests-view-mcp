@@ -22,10 +22,20 @@ func NewService(baseDir string) *Service {
 	}
 }
 
+// BaseDir returns the configured filesystem root for this service.
+func (s *Service) BaseDir() string {
+	return s.baseDir
+}
+
 // ListFiles lists files and directories in the specified path
 func (s *Service) ListFiles(path string) (*ListFilesResponse, error) {
+	relativePath, err := s.CanonicalizePath(path)
+	if err != nil {
+		return nil, err
+	}
+
 	// Resolve the full path
-	fullPath := s.resolvePath(path)
+	fullPath := s.resolveFSPath(relativePath)
 
 	// Check if path exists and is a directory
 	info, err := os.Stat(fullPath)
@@ -58,7 +68,7 @@ func (s *Service) ListFiles(path string) (*ListFilesResponse, error) {
 
 		files = append(files, FileEntry{
 			Name:    entry.Name(),
-			Path:    filepath.Join(path, entry.Name()),
+			Path:    toSlash(filepath.Join(relativePath, entry.Name())),
 			IsDir:   entry.IsDir(),
 			Size:    info.Size(),
 			ModTime: info.ModTime(),
@@ -74,15 +84,20 @@ func (s *Service) ListFiles(path string) (*ListFilesResponse, error) {
 	})
 
 	return &ListFilesResponse{
-		Path:  path,
+		Path:  relativePath,
 		Files: files,
 	}, nil
 }
 
 // ReadFile reads the content of a file
 func (s *Service) ReadFile(path string) (*FileContent, error) {
+	relativePath, err := s.CanonicalizePath(path)
+	if err != nil {
+		return nil, err
+	}
+
 	// Resolve the full path
-	fullPath := s.resolvePath(path)
+	fullPath := s.resolveFSPath(relativePath)
 
 	// Check if file exists
 	info, err := os.Stat(fullPath)
@@ -107,14 +122,14 @@ func (s *Service) ReadFile(path string) (*FileContent, error) {
 	}
 
 	// Determine MIME type
-	mimeType := mime.TypeByExtension(filepath.Ext(path))
+	mimeType := mime.TypeByExtension(filepath.Ext(relativePath))
 	if mimeType == "" {
 		mimeType = "text/plain"
 	}
 
 	return &FileContent{
-		Path:     path,
-		Name:     filepath.Base(path),
+		Path:     relativePath,
+		Name:     filepath.Base(relativePath),
 		Content:  string(content),
 		Size:     info.Size(),
 		ModTime:  info.ModTime(),
@@ -122,20 +137,56 @@ func (s *Service) ReadFile(path string) (*FileContent, error) {
 	}, nil
 }
 
-// resolvePath resolves a relative path to an absolute path within baseDir
-func (s *Service) resolvePath(path string) string {
-	if path == "" || path == "." {
+// CanonicalizePath resolves a path into the canonical repo-relative form.
+func (s *Service) CanonicalizePath(path string) (string, error) {
+	trimmed := strings.TrimSpace(path)
+	if trimmed == "" {
+		return ".", nil
+	}
+
+	cleanPath := filepath.Clean(trimmed)
+	if filepath.IsAbs(cleanPath) {
+		relPath, err := filepath.Rel(s.baseDir, cleanPath)
+		if err != nil {
+			return "", fmt.Errorf("failed to resolve path %q relative to configured codebase root %q: %w", path, s.baseDir, err)
+		}
+		cleanPath = filepath.Clean(relPath)
+	}
+
+	if escapesBaseDir(cleanPath) {
+		return "", fmt.Errorf("path %q is outside configured codebase root %q; submit repo-relative paths like %q", path, s.baseDir, "internal/foo.go")
+	}
+
+	return toSlash(cleanPath), nil
+}
+
+// ResolvePath returns the on-disk absolute path for a canonical or user-supplied path.
+func (s *Service) ResolvePath(path string) (string, error) {
+	relativePath, err := s.CanonicalizePath(path)
+	if err != nil {
+		return "", err
+	}
+	return s.resolveFSPath(relativePath), nil
+}
+
+func (s *Service) resolveFSPath(path string) string {
+	if path == "." {
 		return s.baseDir
 	}
+	return filepath.Join(s.baseDir, filepath.FromSlash(path))
+}
 
-	// Clean the path to prevent directory traversal
-	cleanPath := filepath.Clean(path)
-
-	// If it's already absolute, use it directly (for development)
-	if filepath.IsAbs(cleanPath) {
-		return cleanPath
+func escapesBaseDir(path string) bool {
+	if path == ".." {
+		return true
 	}
+	prefix := ".." + string(filepath.Separator)
+	return strings.HasPrefix(path, prefix)
+}
 
-	// Otherwise, join with baseDir
-	return filepath.Join(s.baseDir, cleanPath)
+func toSlash(path string) string {
+	if path == "." {
+		return "."
+	}
+	return filepath.ToSlash(path)
 }

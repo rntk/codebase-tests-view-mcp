@@ -4,6 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 
 	"codebase-view-mcp/internal/files"
@@ -54,16 +57,21 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Read file content
-	fileContent, err := h.fileService.ReadFile(path)
+	fileContent, err := h.fileService.ReadFile(canonicalPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	// Attach metadata if available
-	metadata := h.metaStore.GetTestMetadata(path)
+	metadata := h.metaStore.GetTestMetadata(canonicalPath)
 	if metadata != nil {
 		fileContent.Metadata = metadata
 
@@ -97,13 +105,18 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Get metadata for the file
-	fileMeta := h.metaStore.GetTestMetadata(path)
+	fileMeta := h.metaStore.GetTestMetadata(canonicalPath)
 	if fileMeta == nil || len(fileMeta.Tests) == 0 {
 		// No tests found
 		response := files.TestsResponse{
-			SourceFile: path,
+			SourceFile: canonicalPath,
 			Tests:      []files.TestDetail{},
 		}
 		w.Header().Set("Content-Type", "application/json")
@@ -149,7 +162,7 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	response := files.TestsResponse{
-		SourceFile: path,
+		SourceFile: canonicalPath,
 		Tests:      testDetails,
 	}
 
@@ -167,14 +180,19 @@ func (h *Handler) GetSources(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	sources := h.metaStore.GetTestFileMetadata(path)
+	sources := h.metaStore.GetTestFileMetadata(canonicalPath)
 	if sources == nil {
 		sources = []files.SourceReference{}
 	}
 
 	response := files.TestFileResponse{
-		TestFile: path,
+		TestFile: canonicalPath,
 		Sources:  sources,
 	}
 
@@ -192,15 +210,20 @@ func (h *Handler) GetSuggestions(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Get suggestions for the file
-	suggestions := h.metaStore.GetSuggestions(path)
+	suggestions := h.metaStore.GetSuggestions(canonicalPath)
 	if suggestions == nil {
 		suggestions = []files.TestSuggestion{}
 	}
 
 	response := files.SuggestionsResponse{
-		SourceFile:  path,
+		SourceFile:  canonicalPath,
 		Suggestions: suggestions,
 	}
 
@@ -238,14 +261,19 @@ func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path is required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	comments := h.metaStore.GetComments(path)
+	comments := h.metaStore.GetComments(canonicalPath)
 	if comments == nil {
 		comments = []files.Comment{}
 	}
 
 	response := files.CommentsResponse{
-		SourceFile: path,
+		SourceFile: canonicalPath,
 		Comments:   comments,
 	}
 
@@ -261,6 +289,11 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
 		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -286,7 +319,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 		ContextLines: req.ContextLines,
 	}
 
-	created, err := h.metaStore.AddComment(path, comment)
+	created, err := h.metaStore.AddComment(canonicalPath, comment)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -309,6 +342,11 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path and commentId are required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	var req struct {
 		Content string `json:"content"`
@@ -323,7 +361,7 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.metaStore.UpdateComment(path, commentID, strings.TrimSpace(req.Content)); err != nil {
+	if err := h.metaStore.UpdateComment(canonicalPath, commentID, strings.TrimSpace(req.Content)); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -339,8 +377,13 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "path and commentId are required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	if err := h.metaStore.DeleteComment(path, commentID); err != nil {
+	if err := h.metaStore.DeleteComment(canonicalPath, commentID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -356,8 +399,13 @@ func (h *Handler) ToggleCommentResolved(w http.ResponseWriter, r *http.Request) 
 		http.Error(w, "path and commentId are required", http.StatusBadRequest)
 		return
 	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
 
-	if err := h.metaStore.ToggleCommentResolved(path, commentID); err != nil {
+	if err := h.metaStore.ToggleCommentResolved(canonicalPath, commentID); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
@@ -371,6 +419,11 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
 		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
@@ -387,14 +440,14 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get file content
-	fileContent, err := h.fileService.ReadFile(path)
+	fileContent, err := h.fileService.ReadFile(canonicalPath)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusNotFound)
 		return
 	}
 
 	// Get comments
-	comments := h.metaStore.GetComments(path)
+	comments := h.metaStore.GetComments(canonicalPath)
 	if comments == nil {
 		comments = []files.Comment{}
 	}
@@ -433,13 +486,13 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 
 	// Build response
 	response := files.ExportContextResponse{
-		SourceFile:  path,
+		SourceFile:  canonicalPath,
 		CodeContext: codeBlocks,
 	}
 
 	// Include tests if requested
 	if req.IncludeTests {
-		testsMeta := h.metaStore.GetTestMetadata(path)
+		testsMeta := h.metaStore.GetTestMetadata(canonicalPath)
 		if testsMeta != nil {
 			for _, testRef := range testsMeta.Tests {
 				detail := files.TestDetail{
@@ -470,7 +523,7 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 
 	// Include suggestions if requested
 	if req.IncludeSuggestions {
-		response.Suggestions = h.metaStore.GetSuggestions(path)
+		response.Suggestions = h.metaStore.GetSuggestions(canonicalPath)
 	}
 
 	// Build formatted string for easy copying
@@ -481,6 +534,166 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
+}
+
+// GetMetadataIssues handles GET /api/metadata/issues
+func (h *Handler) GetMetadataIssues(w http.ResponseWriter, r *http.Request) {
+	allMetadata := h.metaStore.GetAllMetadata()
+
+	sourceFiles := make([]string, 0, len(allMetadata))
+	for sourceFile := range allMetadata {
+		sourceFiles = append(sourceFiles, sourceFile)
+	}
+	sort.Strings(sourceFiles)
+
+	issues := make([]files.MetadataIssue, 0)
+	for _, sourceFile := range sourceFiles {
+		meta := allMetadata[sourceFile]
+		if meta == nil {
+			continue
+		}
+
+		sourceValid, sourceIsAbsolute, sourceMessage := h.inspectStoredPath(sourceFile)
+		issue := files.MetadataIssue{
+			SourceFile:        sourceFile,
+			SourceValid:       sourceValid,
+			SourceIsAbsolute:  sourceIsAbsolute,
+			SourceMessage:     sourceMessage,
+			SuggestionsCount:  len(meta.Suggestions),
+			CommentsCount:     len(meta.Comments),
+			InvalidTestIssues: []files.MetadataTestIssue{},
+		}
+
+		for _, testRef := range meta.Tests {
+			testValid, testIsAbsolute, testMessage := h.inspectStoredPath(testRef.TestFile)
+			if testValid {
+				continue
+			}
+			issue.InvalidTestIssues = append(issue.InvalidTestIssues, files.MetadataTestIssue{
+				TestFile:   testRef.TestFile,
+				TestName:   testRef.TestName,
+				IsAbsolute: testIsAbsolute,
+				Message:    testMessage,
+			})
+		}
+
+		sort.Slice(issue.InvalidTestIssues, func(i, j int) bool {
+			if issue.InvalidTestIssues[i].TestFile == issue.InvalidTestIssues[j].TestFile {
+				return issue.InvalidTestIssues[i].TestName < issue.InvalidTestIssues[j].TestName
+			}
+			return issue.InvalidTestIssues[i].TestFile < issue.InvalidTestIssues[j].TestFile
+		})
+
+		if !issue.SourceValid || len(issue.InvalidTestIssues) > 0 {
+			issues = append(issues, issue)
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(files.MetadataIssuesResponse{Issues: issues}); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}
+
+// UpdateSourcePath handles PUT /api/metadata/source-path
+func (h *Handler) UpdateSourcePath(w http.ResponseWriter, r *http.Request) {
+	var req files.UpdateSourcePathRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.OldPath) == "" || strings.TrimSpace(req.NewPath) == "" {
+		http.Error(w, "oldPath and newPath are required", http.StatusBadRequest)
+		return
+	}
+
+	newPath, err := h.canonicalizeExistingPath(req.NewPath)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.metaStore.RenameSourcePath(req.OldPath, newPath); err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "already exists") {
+			status = http.StatusConflict
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// UpdateTestPath handles PUT /api/metadata/test-path
+func (h *Handler) UpdateTestPath(w http.ResponseWriter, r *http.Request) {
+	var req files.UpdateTestPathRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.SourceFile) == "" || strings.TrimSpace(req.TestFile) == "" || strings.TrimSpace(req.TestName) == "" || strings.TrimSpace(req.NewTestFile) == "" {
+		http.Error(w, "sourceFile, testFile, testName, and newTestFile are required", http.StatusBadRequest)
+		return
+	}
+
+	newTestFile, err := h.canonicalizeExistingPath(req.NewTestFile)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	if err := h.metaStore.UpdateTestPath(req.SourceFile, req.TestFile, req.TestName, newTestFile); err != nil {
+		status := http.StatusBadRequest
+		if strings.Contains(err.Error(), "already exists") {
+			status = http.StatusConflict
+		}
+		http.Error(w, err.Error(), status)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteSourcePath handles DELETE /api/metadata/source-path
+func (h *Handler) DeleteSourcePath(w http.ResponseWriter, r *http.Request) {
+	var req files.DeleteSourcePathRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.Path) == "" {
+		http.Error(w, "path is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.metaStore.DeleteSourcePath(req.Path); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
+// DeleteTestPath handles DELETE /api/metadata/test-path
+func (h *Handler) DeleteTestPath(w http.ResponseWriter, r *http.Request) {
+	var req files.DeleteTestPathRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+	if strings.TrimSpace(req.SourceFile) == "" || strings.TrimSpace(req.TestFile) == "" || strings.TrimSpace(req.TestName) == "" {
+		http.Error(w, "sourceFile, testFile, and testName are required", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.metaStore.DeleteTestPath(req.SourceFile, req.TestFile, req.TestName); err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 // buildFormattedExport creates a human-readable formatted export for AI agents
@@ -643,4 +856,43 @@ func (h *Handler) GetOverview(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "failed to encode response", http.StatusInternalServerError)
 		return
 	}
+}
+
+func (h *Handler) inspectStoredPath(path string) (bool, bool, string) {
+	isAbsolute := filepath.IsAbs(filepath.Clean(strings.TrimSpace(path)))
+
+	resolvedPath, err := h.fileService.ResolvePath(path)
+	if err != nil {
+		return false, isAbsolute, err.Error()
+	}
+
+	if _, err := os.Stat(resolvedPath); err != nil {
+		if os.IsNotExist(err) {
+			return false, isAbsolute, fmt.Sprintf("path %q does not exist under configured codebase root %q", path, h.fileService.BaseDir())
+		}
+		return false, isAbsolute, fmt.Sprintf("failed to inspect path %q: %v", path, err)
+	}
+
+	return true, isAbsolute, ""
+}
+
+func (h *Handler) canonicalizeExistingPath(path string) (string, error) {
+	canonicalPath, err := h.fileService.CanonicalizePath(path)
+	if err != nil {
+		return "", err
+	}
+
+	resolvedPath, err := h.fileService.ResolvePath(canonicalPath)
+	if err != nil {
+		return "", err
+	}
+
+	if _, err := os.Stat(resolvedPath); err != nil {
+		if os.IsNotExist(err) {
+			return "", fmt.Errorf("path %q does not exist under configured codebase root %q", canonicalPath, h.fileService.BaseDir())
+		}
+		return "", fmt.Errorf("failed to inspect path %q: %w", canonicalPath, err)
+	}
+
+	return canonicalPath, nil
 }

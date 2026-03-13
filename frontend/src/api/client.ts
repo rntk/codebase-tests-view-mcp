@@ -9,7 +9,8 @@ import type {
   CommentRequest,
   ExportContextRequest,
   ExportContextResponse,
-  OverviewResponse
+  OverviewResponse,
+  MetadataIssuesResponse
 } from '../types';
 
 const API_BASE = '/api';
@@ -130,4 +131,56 @@ export async function getProjectOverview(): Promise<OverviewResponse> {
     throw new Error(`Failed to get project overview: ${response.statusText}`);
   }
   return response.json();
+}
+
+export async function getMetadataIssues(): Promise<MetadataIssuesResponse> {
+  const response = await fetch(`${API_BASE}/metadata/issues`);
+  if (!response.ok) {
+    throw new Error(`Failed to get metadata issues: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+export async function updateSourcePath(oldPath: string, newPath: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/metadata/source-path`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ oldPath, newPath }),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text() || `Failed to update source path: ${response.statusText}`);
+  }
+}
+
+export async function updateTestPath(sourceFile: string, testFile: string, testName: string, newTestFile: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/metadata/test-path`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceFile, testFile, testName, newTestFile }),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text() || `Failed to update test path: ${response.statusText}`);
+  }
+}
+
+export async function deleteSourcePath(path: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/metadata/source-path`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path }),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text() || `Failed to delete source path: ${response.statusText}`);
+  }
+}
+
+export async function deleteTestPath(sourceFile: string, testFile: string, testName: string): Promise<void> {
+  const response = await fetch(`${API_BASE}/metadata/test-path`, {
+    method: 'DELETE',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ sourceFile, testFile, testName }),
+  });
+  if (!response.ok) {
+    throw new Error(await response.text() || `Failed to delete test path: ${response.statusText}`);
+  }
 }

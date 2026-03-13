@@ -39,7 +39,7 @@ func main() {
 	// Initialize services
 	fileService := files.NewService(absBaseDir)
 	metaStore := metadata.NewStore(*metadataPath)
-	mcpHandler := mcp.NewHandler(metaStore)
+	mcpHandler := mcp.NewHandler(metaStore, fileService)
 
 	// Initialize API handler
 	apiHandler := api.NewHandler(fileService, metaStore, mcpHandler)

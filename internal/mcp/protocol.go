@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 
+	"codebase-view-mcp/internal/files"
 	"codebase-view-mcp/internal/metadata"
 )
 
@@ -154,13 +155,20 @@ type TextContent struct {
 
 // Handler handles MCP protocol requests
 type Handler struct {
-	metaStore *metadata.Store
+	metaStore   *metadata.Store
+	fileService *files.Service
 }
 
 // NewHandler creates a new MCP handler
-func NewHandler(metaStore *metadata.Store) *Handler {
+func NewHandler(metaStore *metadata.Store, fileService ...*files.Service) *Handler {
+	var sharedFileService *files.Service
+	if len(fileService) > 0 {
+		sharedFileService = fileService[0]
+	}
+
 	return &Handler{
-		metaStore: metaStore,
+		metaStore:   metaStore,
+		fileService: sharedFileService,
 	}
 }
 
@@ -247,6 +255,10 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 	if !ok {
 		return nil, fmt.Errorf("sourceFile is required and must be a string")
 	}
+	sourceFile, err := h.canonicalizePath(sourceFile)
+	if err != nil {
+		return nil, err
+	}
 
 	// Extract tests array
 	testsRaw, ok := args["tests"]
@@ -264,6 +276,10 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 		return nil, fmt.Errorf("invalid tests format: %w", err)
 	}
 	for i, test := range tests {
+		tests[i].TestFile, err = h.canonicalizePath(test.TestFile)
+		if err != nil {
+			return nil, fmt.Errorf("testFile for test %d (%s): %w", i, test.TestName, err)
+		}
 		if strings.TrimSpace(test.FunctionName) == "" {
 			return nil, fmt.Errorf("functionName is required for test %d (%s)", i, test.TestName)
 		}
@@ -332,6 +348,10 @@ func (h *Handler) executeSuggestMissingTests(args map[string]interface{}) (inter
 	if !ok {
 		return nil, fmt.Errorf("sourceFile is required and must be a string")
 	}
+	sourceFile, err := h.canonicalizePath(sourceFile)
+	if err != nil {
+		return nil, err
+	}
 
 	// Extract suggestions array
 	suggestionsRaw, ok := args["suggestions"]
@@ -383,6 +403,27 @@ func (h *Handler) handlePromptsGet(params json.RawMessage) (interface{}, error) 
 		return nil, fmt.Errorf("invalid params: %w", err)
 	}
 
+	switch getParams.Name {
+	case "codebase-tests-review":
+		path := getParams.Arguments["filePath"]
+		if path != "" {
+			canonicalPath, err := h.canonicalizePath(path)
+			if err != nil {
+				return nil, err
+			}
+			getParams.Arguments["filePath"] = canonicalPath
+		}
+	case "test-to-source-review":
+		path := getParams.Arguments["testFilePath"]
+		if path != "" {
+			canonicalPath, err := h.canonicalizePath(path)
+			if err != nil {
+				return nil, err
+			}
+			getParams.Arguments["testFilePath"] = canonicalPath
+		}
+	}
+
 	messages, err := GetPromptContent(getParams.Name, getParams.Arguments)
 	if err != nil {
 		return nil, err
@@ -422,4 +463,11 @@ func (h *Handler) sendError(w http.ResponseWriter, id interface{}, code int, mes
 	if err := json.NewEncoder(w).Encode(response); err != nil {
 		log.Printf("Error encoding JSON error response: %v", err)
 	}
+}
+
+func (h *Handler) canonicalizePath(path string) (string, error) {
+	if h.fileService == nil {
+		return path, nil
+	}
+	return h.fileService.CanonicalizePath(path)
 }

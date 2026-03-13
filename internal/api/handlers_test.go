@@ -1393,12 +1393,12 @@ func TestBuildFormattedExport(t *testing.T) {
 			SourceFile: "test.go",
 			Tests: []files.TestDetail{
 				{
-					TestName:       "TestMain",
-					FunctionName:   "Main",
-					TestFile:       "test_test.go",
-					Comment:        "Tests the main function",
-					LineRange:      files.LineRange{Start: 1, End: 10},
-					CoveredLines:   files.LineRange{Start: 1, End: 5},
+					TestName:     "TestMain",
+					FunctionName: "Main",
+					TestFile:     "test_test.go",
+					Comment:      "Tests the main function",
+					LineRange:    files.LineRange{Start: 1, End: 10},
+					CoveredLines: files.LineRange{Start: 1, End: 5},
 				},
 			},
 		}
@@ -1548,6 +1548,171 @@ func TestExtractLines(t *testing.T) {
 
 		if result != "" {
 			t.Errorf("expected empty string, got %q", result)
+		}
+	})
+}
+
+func TestMetadataIssueHandlers(t *testing.T) {
+	t.Run("lists invalid metadata issues", func(t *testing.T) {
+		baseDir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(baseDir, "valid.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		metaStore := metadata.NewStore("")
+		if err := metaStore.SetTestMetadata("/app/invalid.go", []metadata.TestReference{
+			{
+				TestFile:     "missing_test.go",
+				TestName:     "TestBroken",
+				FunctionName: "Broken",
+				Comment:      "broken metadata",
+				LineRange:    metadata.LineRange{Start: 1, End: 2},
+				CoveredLines: metadata.LineRange{Start: 1, End: 1},
+			},
+		}); err != nil {
+			t.Fatalf("set metadata: %v", err)
+		}
+
+		h := &Handler{
+			fileService: files.NewService(baseDir),
+			metaStore:   metaStore,
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/metadata/issues", nil)
+		rr := httptest.NewRecorder()
+
+		h.GetMetadataIssues(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+
+		var response files.MetadataIssuesResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if len(response.Issues) != 1 {
+			t.Fatalf("expected 1 issue, got %d", len(response.Issues))
+		}
+		if response.Issues[0].SourceValid {
+			t.Fatal("expected invalid source entry")
+		}
+		if len(response.Issues[0].InvalidTestIssues) != 1 {
+			t.Fatalf("expected 1 invalid test issue, got %d", len(response.Issues[0].InvalidTestIssues))
+		}
+	})
+
+	t.Run("updates source path to canonical relative value", func(t *testing.T) {
+		baseDir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(baseDir, "pkg"), 0755); err != nil {
+			t.Fatalf("mkdirAll: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, "pkg", "source.go"), []byte("package pkg"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		metaStore := metadata.NewStore("")
+		if err := metaStore.SetTestMetadata("/app/pkg/source.go", []metadata.TestReference{
+			{
+				TestFile:     "pkg/source_test.go",
+				TestName:     "TestSource",
+				FunctionName: "Source",
+				Comment:      "renamed source",
+				LineRange:    metadata.LineRange{Start: 1, End: 2},
+				CoveredLines: metadata.LineRange{Start: 1, End: 1},
+			},
+		}); err != nil {
+			t.Fatalf("set metadata: %v", err)
+		}
+
+		h := &Handler{
+			fileService: files.NewService(baseDir),
+			metaStore:   metaStore,
+		}
+
+		body := `{"oldPath":"/app/pkg/source.go","newPath":"pkg/source.go"}`
+		req := httptest.NewRequest(http.MethodPut, "/api/metadata/source-path", strings.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		h.UpdateSourcePath(rr, req)
+
+		if rr.Code != http.StatusNoContent {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNoContent)
+		}
+		if metaStore.GetTestMetadata("/app/pkg/source.go") != nil {
+			t.Fatal("expected old source path to be removed")
+		}
+		if metaStore.GetTestMetadata("pkg/source.go") == nil {
+			t.Fatal("expected canonical source path to exist")
+		}
+	})
+
+	t.Run("updates and deletes invalid test paths", func(t *testing.T) {
+		baseDir := t.TempDir()
+		if err := os.MkdirAll(filepath.Join(baseDir, "pkg"), 0755); err != nil {
+			t.Fatalf("mkdirAll: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, "pkg", "source.go"), []byte("package pkg"), 0644); err != nil {
+			t.Fatalf("write source file: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, "pkg", "source_test.go"), []byte("package pkg"), 0644); err != nil {
+			t.Fatalf("write test file: %v", err)
+		}
+
+		metaStore := metadata.NewStore("")
+		if err := metaStore.SetTestMetadata("pkg/source.go", []metadata.TestReference{
+			{
+				TestFile:     "/app/pkg/source_test.go",
+				TestName:     "TestSource",
+				FunctionName: "Source",
+				Comment:      "broken test path",
+				LineRange:    metadata.LineRange{Start: 1, End: 2},
+				CoveredLines: metadata.LineRange{Start: 1, End: 1},
+			},
+			{
+				TestFile:     "missing_test.go",
+				TestName:     "TestMissing",
+				FunctionName: "Source",
+				Comment:      "missing test path",
+				LineRange:    metadata.LineRange{Start: 3, End: 4},
+				CoveredLines: metadata.LineRange{Start: 1, End: 1},
+			},
+		}); err != nil {
+			t.Fatalf("set metadata: %v", err)
+		}
+
+		h := &Handler{
+			fileService: files.NewService(baseDir),
+			metaStore:   metaStore,
+		}
+
+		updateBody := `{"sourceFile":"pkg/source.go","testFile":"/app/pkg/source_test.go","testName":"TestSource","newTestFile":"pkg/source_test.go"}`
+		updateReq := httptest.NewRequest(http.MethodPut, "/api/metadata/test-path", strings.NewReader(updateBody))
+		updateRR := httptest.NewRecorder()
+
+		h.UpdateTestPath(updateRR, updateReq)
+
+		if updateRR.Code != http.StatusNoContent {
+			t.Fatalf("update status = %d, want %d", updateRR.Code, http.StatusNoContent)
+		}
+
+		deleteBody := `{"sourceFile":"pkg/source.go","testFile":"missing_test.go","testName":"TestMissing"}`
+		deleteReq := httptest.NewRequest(http.MethodDelete, "/api/metadata/test-path", strings.NewReader(deleteBody))
+		deleteRR := httptest.NewRecorder()
+
+		h.DeleteTestPath(deleteRR, deleteReq)
+
+		if deleteRR.Code != http.StatusNoContent {
+			t.Fatalf("delete status = %d, want %d", deleteRR.Code, http.StatusNoContent)
+		}
+
+		meta := metaStore.GetTestMetadata("pkg/source.go")
+		if meta == nil || len(meta.Tests) != 1 {
+			t.Fatalf("expected 1 remaining test, got %+v", meta)
+		}
+		if meta.Tests[0].TestFile != "pkg/source_test.go" {
+			t.Fatalf("expected updated test path %q, got %q", "pkg/source_test.go", meta.Tests[0].TestFile)
 		}
 	})
 }

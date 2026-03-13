@@ -5,8 +5,12 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
+	"codebase-view-mcp/internal/files"
 	"codebase-view-mcp/internal/metadata"
 )
 
@@ -249,6 +253,88 @@ func TestHandlerHandle(t *testing.T) {
 
 		if response.Error != nil {
 			t.Errorf("unexpected error: %+v", response.Error)
+		}
+	})
+
+	t.Run("tools/call normalizes absolute paths under configured root", func(t *testing.T) {
+		baseDir := t.TempDir()
+		sourcePath := filepath.Join(baseDir, "pkg", "source.go")
+		testPath := filepath.Join(baseDir, "pkg", "source_test.go")
+		if err := os.MkdirAll(filepath.Dir(sourcePath), 0755); err != nil {
+			t.Fatalf("mkdirAll: %v", err)
+		}
+		if err := os.WriteFile(sourcePath, []byte("package pkg"), 0644); err != nil {
+			t.Fatalf("write source file: %v", err)
+		}
+		if err := os.WriteFile(testPath, []byte("package pkg"), 0644); err != nil {
+			t.Fatalf("write test file: %v", err)
+		}
+
+		metaStore := metadata.NewStore("")
+		handler := NewHandler(metaStore, files.NewService(baseDir))
+
+		reqBody := JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      51,
+			Method:  "tools/call",
+			Params:  json.RawMessage([]byte(`{"name":"submit-test-metadata","arguments":{"sourceFile":"` + sourcePath + `","tests":[{"testFile":"` + testPath + `","testName":"TestSomething","functionName":"Something","comment":"Tests something","lineRange":{"start":1,"end":10},"coveredLines":{"start":1,"end":5}}]}}`)),
+		}
+
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		handler.Handle(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+
+		if meta := metaStore.GetTestMetadata("pkg/source.go"); meta == nil || len(meta.Tests) != 1 {
+			t.Fatalf("expected normalized metadata entry for pkg/source.go, got %+v", meta)
+		} else if meta.Tests[0].TestFile != "pkg/source_test.go" {
+			t.Fatalf("expected normalized test file %q, got %q", "pkg/source_test.go", meta.Tests[0].TestFile)
+		}
+	})
+
+	t.Run("tools/call rejects absolute paths outside configured root", func(t *testing.T) {
+		baseDir := t.TempDir()
+		outsideDir := t.TempDir()
+		outsideSource := filepath.Join(outsideDir, "source.go")
+		outsideTest := filepath.Join(outsideDir, "source_test.go")
+		if err := os.WriteFile(outsideSource, []byte("package main"), 0644); err != nil {
+			t.Fatalf("write source file: %v", err)
+		}
+		if err := os.WriteFile(outsideTest, []byte("package main"), 0644); err != nil {
+			t.Fatalf("write test file: %v", err)
+		}
+
+		metaStore := metadata.NewStore("")
+		handler := NewHandler(metaStore, files.NewService(baseDir))
+
+		reqBody := JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      52,
+			Method:  "tools/call",
+			Params:  json.RawMessage([]byte(`{"name":"submit-test-metadata","arguments":{"sourceFile":"` + outsideSource + `","tests":[{"testFile":"` + outsideTest + `","testName":"TestSomething","functionName":"Something","comment":"Tests something","lineRange":{"start":1,"end":10},"coveredLines":{"start":1,"end":5}}]}}`)),
+		}
+
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+
+		handler.Handle(rr, req)
+
+		var response JSONRPCResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if response.Error == nil {
+			t.Fatal("expected error for path outside configured root")
+		}
+		if !strings.Contains(response.Error.Message, "outside configured codebase root") {
+			t.Fatalf("unexpected error message: %s", response.Error.Message)
 		}
 	})
 

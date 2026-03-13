@@ -181,3 +181,24 @@ export interface OverviewResponse {
   functions: FunctionSummary[];
   testsBySourceFile: Record<string, TestDetail[]>;
 }
+
+export interface MetadataTestIssue {
+  testFile: string;
+  testName: string;
+  isAbsolute: boolean;
+  message: string;
+}
+
+export interface MetadataIssue {
+  sourceFile: string;
+  sourceValid: boolean;
+  sourceIsAbsolute: boolean;
+  sourceMessage?: string;
+  suggestionsCount: number;
+  commentsCount: number;
+  invalidTestIssues: MetadataTestIssue[];
+}
+
+export interface MetadataIssuesResponse {
+  issues: MetadataIssue[];
+}

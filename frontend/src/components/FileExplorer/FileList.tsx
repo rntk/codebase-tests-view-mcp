@@ -6,10 +6,11 @@ import { TabButton } from './TabButton';
 import { TestsList } from './TestsList';
 import { FunctionsWithTests } from './FunctionsWithTests';
 import { ProjectOverview } from './ProjectOverview';
-import type { FileEntry, TestDetail, OverviewResponse } from '../../types';
+import { MetadataIssuesPanel } from './MetadataIssuesPanel';
+import type { FileEntry, TestDetail, OverviewResponse, MetadataIssue } from '../../types';
 import { groupTestsByFunction } from '../../utils/testUtils';
 
-type ExplorerTab = 'overview' | 'files';
+type ExplorerTab = 'overview' | 'issues' | 'files';
 type FilesSubview = 'files' | 'tests' | 'functions';
 
 interface FileListProps {
@@ -29,6 +30,10 @@ interface FileListProps {
   overview: OverviewResponse | null;
   overviewLoading: boolean;
   overviewError: string | null;
+  metadataIssues: MetadataIssue[];
+  metadataIssuesLoading: boolean;
+  metadataIssuesError: string | null;
+  onMetadataChanged: () => void;
 }
 
 export const FileList: React.FC<FileListProps> = ({
@@ -47,6 +52,10 @@ export const FileList: React.FC<FileListProps> = ({
   overview,
   overviewLoading,
   overviewError,
+  metadataIssues,
+  metadataIssuesLoading,
+  metadataIssuesError,
+  onMetadataChanged,
 }) => {
   const [activeTab, setActiveTab] = useState<ExplorerTab>('overview');
   const [activeFilesSubview, setActiveFilesSubview] = useState<FilesSubview>('files');
@@ -73,6 +82,12 @@ export const FileList: React.FC<FileListProps> = ({
             isActive={activeTab === 'files'}
             onClick={() => setActiveTab('files')}
             badge={files.length}
+          />
+          <TabButton
+            label="Issues"
+            isActive={activeTab === 'issues'}
+            onClick={() => setActiveTab('issues')}
+            badge={metadataIssues.length}
           />
         </div>
       </div>
@@ -176,6 +191,18 @@ export const FileList: React.FC<FileListProps> = ({
               </div>
             )}
           </div>
+        </div>
+      )}
+
+      {activeTab === 'issues' && (
+        <div className="file-list-tab-scroll">
+          <MetadataIssuesPanel
+            issues={metadataIssues}
+            loading={metadataIssuesLoading}
+            error={metadataIssuesError}
+            onMetadataChanged={onMetadataChanged}
+            onSourceFileClick={onSourceFileClick}
+          />
         </div>
       )}
     </div>

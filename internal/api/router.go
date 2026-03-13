@@ -8,6 +8,11 @@ func SetupRoutes(h *Handler) *http.ServeMux {
 
 	// Overview endpoint (global project summary)
 	mux.HandleFunc("GET /api/overview", h.GetOverview)
+	mux.HandleFunc("GET /api/metadata/issues", h.GetMetadataIssues)
+	mux.HandleFunc("PUT /api/metadata/source-path", h.UpdateSourcePath)
+	mux.HandleFunc("PUT /api/metadata/test-path", h.UpdateTestPath)
+	mux.HandleFunc("DELETE /api/metadata/source-path", h.DeleteSourcePath)
+	mux.HandleFunc("DELETE /api/metadata/test-path", h.DeleteTestPath)
 
 	// File operations
 	mux.HandleFunc("GET /api/files", h.ListFiles)

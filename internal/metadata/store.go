@@ -2,6 +2,7 @@ package metadata
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 	"sync"
@@ -350,6 +351,117 @@ func (s *Store) ToggleCommentResolved(filePath string, commentID string) error {
 			break
 		}
 	}
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
+}
+
+// RenameSourcePath moves all metadata from one source path key to another.
+func (s *Store) RenameSourcePath(oldPath, newPath string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing := s.metadata[oldPath]
+	if existing == nil {
+		return fmt.Errorf("metadata entry not found for %s", oldPath)
+	}
+	if oldPath == newPath {
+		return nil
+	}
+	if s.metadata[newPath] != nil {
+		return fmt.Errorf("metadata entry already exists for %s", newPath)
+	}
+
+	s.metadata[newPath] = existing
+	delete(s.metadata, oldPath)
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
+}
+
+// UpdateTestPath rewrites a single test-file reference inside a source entry.
+func (s *Store) UpdateTestPath(sourceFile, testFile, testName, newTestFile string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing := s.metadata[sourceFile]
+	if existing == nil {
+		return fmt.Errorf("metadata entry not found for %s", sourceFile)
+	}
+
+	index := -1
+	for i, test := range existing.Tests {
+		if test.TestFile == testFile && test.TestName == testName {
+			index = i
+			break
+		}
+	}
+	if index == -1 {
+		return fmt.Errorf("test reference not found for %s (%s)", testFile, testName)
+	}
+
+	for i, test := range existing.Tests {
+		if i == index {
+			continue
+		}
+		if test.TestFile == newTestFile && test.TestName == testName {
+			return fmt.Errorf("test reference already exists for %s (%s)", newTestFile, testName)
+		}
+	}
+
+	s.metadata[sourceFile].Tests[index].TestFile = newTestFile
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
+}
+
+// DeleteSourcePath removes an entire metadata entry.
+func (s *Store) DeleteSourcePath(path string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	delete(s.metadata, path)
+
+	if s.filePath != "" {
+		return s.saveUnsafe()
+	}
+
+	return nil
+}
+
+// DeleteTestPath removes a single test reference from a source entry.
+func (s *Store) DeleteTestPath(sourceFile, testFile, testName string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	existing := s.metadata[sourceFile]
+	if existing == nil {
+		return fmt.Errorf("metadata entry not found for %s", sourceFile)
+	}
+
+	filtered := make([]TestReference, 0, len(existing.Tests))
+	removed := false
+	for _, test := range existing.Tests {
+		if test.TestFile == testFile && test.TestName == testName {
+			removed = true
+			continue
+		}
+		filtered = append(filtered, test)
+	}
+	if !removed {
+		return fmt.Errorf("test reference not found for %s (%s)", testFile, testName)
+	}
+
+	s.metadata[sourceFile].Tests = filtered
 
 	if s.filePath != "" {
 		return s.saveUnsafe()

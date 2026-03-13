@@ -3,6 +3,7 @@ package files
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -313,6 +314,60 @@ func TestResolvePath(t *testing.T) {
 
 		if response.Path != "." {
 			t.Errorf("expected path %q, got %q", ".", response.Path)
+		}
+	})
+
+	t.Run("normalizes absolute paths under base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		testFile := filepath.Join(baseDir, "nested", "test.txt")
+		if err := os.MkdirAll(filepath.Dir(testFile), 0755); err != nil {
+			t.Fatalf("mkdirAll: %v", err)
+		}
+		if err := os.WriteFile(testFile, []byte("hello"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		fileContent, err := service.ReadFile(testFile)
+		if err != nil {
+			t.Fatalf("ReadFile with absolute path failed: %v", err)
+		}
+
+		if fileContent.Path != "nested/test.txt" {
+			t.Fatalf("expected canonical path %q, got %q", "nested/test.txt", fileContent.Path)
+		}
+	})
+
+	t.Run("rejects absolute paths outside base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		otherDir := t.TempDir()
+		testFile := filepath.Join(otherDir, "outside.txt")
+		if err := os.WriteFile(testFile, []byte("hello"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		_, err := service.ReadFile(testFile)
+		if err == nil {
+			t.Fatal("expected error for absolute path outside base directory")
+		}
+
+		if !strings.Contains(err.Error(), "outside configured codebase root") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("rejects path traversal outside base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+
+		_, err := service.ListFiles("../outside")
+		if err == nil {
+			t.Fatal("expected error for path traversal")
+		}
+
+		if !strings.Contains(err.Error(), "outside configured codebase root") {
+			t.Fatalf("unexpected error: %v", err)
 		}
 	})
 }

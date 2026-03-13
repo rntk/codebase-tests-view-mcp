@@ -15,6 +15,7 @@ import { useComments } from './hooks/useComments';
 import { useExport } from './hooks/useExport';
 import { useSources } from './hooks/useSources';
 import { useProjectOverview } from './hooks/useProjectOverview';
+import { useMetadataIssues } from './hooks/useMetadataIssues';
 import type { FileEntry, TestDetail } from './types';
 import { filterItemsByLine } from './utils/testUtils';
 
@@ -87,7 +88,19 @@ function App() {
   const { tests: directoryTests, loading: directoryTestsLoading, error: directoryTestsError } = useDirectoryTests(currentPath, files);
 
   // Load project overview (global summary of all tests and functions)
-  const { overview, loading: overviewLoading, error: overviewError } = useProjectOverview();
+  const {
+    overview,
+    loading: overviewLoading,
+    error: overviewError,
+    refresh: refreshOverview,
+  } = useProjectOverview();
+
+  const {
+    issues: metadataIssues,
+    loading: metadataIssuesLoading,
+    error: metadataIssuesError,
+    refresh: refreshMetadataIssues,
+  } = useMetadataIssues();
 
   // Load selected file content
   const { file, loading: fileLoading, error: fileError } = useFileContent(selectedFilePath);
@@ -221,6 +234,10 @@ function App() {
     : tests;
 
   const unresolvedCount = comments.filter(c => !c.resolved).length;
+  const handleMetadataChanged = useCallback(() => {
+    refreshOverview();
+    refreshMetadataIssues();
+  }, [refreshMetadataIssues, refreshOverview]);
 
   return (
     <>
@@ -242,6 +259,10 @@ function App() {
             overview={overview}
             overviewLoading={overviewLoading}
             overviewError={overviewError}
+            metadataIssues={metadataIssues}
+            metadataIssuesLoading={metadataIssuesLoading}
+            metadataIssuesError={metadataIssuesError}
+            onMetadataChanged={handleMetadataChanged}
           />
         }
         center={

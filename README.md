@@ -41,6 +41,16 @@ The application will:
 - Store metadata in `./metadata/metadata.json`
 - Browse files from the current directory
 
+### Path Contract
+
+The server treats the `-dir` flag as the canonical codebase root. Every path sent through the REST API or MCP tools must be **repo-relative to that root**.
+
+- Correct: `internal/files/service.go`
+- Incorrect: `/app/internal/files/service.go`
+- Incorrect: `/workspace/internal/files/service.go`
+
+This matters when you run agents and the viewer in different containers. In this repo today, agent containers mount the repo at `/app`, while the Docker Compose server mounts it at `/workspace`. Relative paths are portable across both containers; absolute paths are not.
+
 ## Manual Build
 
 ### Prerequisites
@@ -68,6 +78,8 @@ go build -o server ./cmd/server
 ```bash
 ./server -port 8080 -dir . -metadata metadata.json
 ```
+
+When running on the host, `-dir .` means all API and MCP file paths must be relative to the current repository root.
 
 ## API Endpoints
 
@@ -124,6 +136,8 @@ curl -X POST http://localhost:8080/api/mcp \\
   }'
 ```
 
+`sourceFile` and `testFile` must always be repo-relative paths. Do not submit container-specific absolute paths.
+
 ### Get Prompt for LLM
 
 ```bash
@@ -143,6 +157,8 @@ curl -X POST http://localhost:8080/api/mcp \\
   }'
 ```
 
+`filePath` and `testFilePath` for MCP prompts follow the same rule: they must be relative to the server `-dir` root.
+
 ## Development
 
 ### Frontend Development
@@ -161,6 +177,15 @@ The dev server will proxy `/api/*` requests to `http://localhost:8080`.
 ```bash
 go run ./cmd/server -port 8080 -dir . -metadata metadata.json
 ```
+
+### Troubleshooting Path Errors
+
+If you see an error like `path "/app/..." is outside configured codebase root "/workspace"`, the metadata or MCP request used an absolute container path.
+
+Fix it by:
+
+1. Resubmitting metadata with repo-relative paths such as `internal/files/service.go`
+2. Opening the app's `Issues` tab to repair or delete stale metadata entries that still reference invalid paths
 
 ### Linting
 
@@ -204,7 +229,7 @@ docker run --rm -v $(pwd):/workspace lint-typescript
 ### Command Line Flags
 
 - `-port` - Server port (default: 8080)
-- `-dir` - Base directory to serve files from (default: current directory)
+- `-dir` - Base directory to serve files from; this is the canonical root for all API and MCP paths (default: current directory)
 - `-metadata` - Path to metadata JSON file (default: metadata.json)
 
 ### Environment Variables (Docker)

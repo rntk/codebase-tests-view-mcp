@@ -16,7 +16,7 @@ func GetPrompts() []Prompt {
 				},
 				{
 					Name:        "filePath",
-					Description: "Path to the file containing the function",
+					Description: "Repo-relative path to the file containing the function, relative to the server's configured -dir root",
 					Required:    true,
 				},
 			},
@@ -32,7 +32,7 @@ func GetPrompts() []Prompt {
 				},
 				{
 					Name:        "testFilePath",
-					Description: "Path to the test file containing the test",
+					Description: "Repo-relative path to the test file containing the test, relative to the server's configured -dir root",
 					Required:    true,
 				},
 			},
@@ -55,7 +55,9 @@ func GetPromptContent(name string, args map[string]string) ([]PromptMessage, err
 
 		promptText := fmt.Sprintf(`Please analyze the **%s** function in file **%s**.
 
-**FIRST**: Read the source file and any related test files using ` + "`cat -n %s`" + ` (or equivalent) so that every line is prefixed with its line number. This ensures accurate line references in your analysis.
+Use repo-relative paths only. Do not submit container-specific absolute paths such as /app/... or /workspace/....
+
+**FIRST**: Read the source file and any related test files using `+"`cat -n %s`"+` (or equivalent) so that every line is prefixed with its line number. This ensures accurate line references in your analysis.
 
 1. Examine the function's implementation.
 2. If the function has associated tests, use the **submit-test-metadata** tool to submit metadata.
@@ -84,7 +86,7 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
   "sourceFile": "%s",
   "tests": [
     {
-      "testFile": "path/to/test_file.go",
+      "testFile": "relative/path/to/test_file.go",
       "functionName": "%s",
       "testName": "TestFunctionName",
       "comment": "Brief description of what the test verifies",
@@ -100,7 +102,8 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
 - "lineRange" refers to the lines in the TEST file where the test code is located
 - "functionName" must be the source function name from this prompt (not the test name)
 - "coveredLines" refers to the lines in the SOURCE file (%s) that this test covers
-- "inputLines" and "outputLines" refer to lines in the TEST file`, functionName, filePath, filePath, filePath, functionName, filePath)
+- "inputLines" and "outputLines" refer to lines in the TEST file
+- "sourceFile" and "testFile" must stay repo-relative to the server root`, functionName, filePath, filePath, filePath, functionName, filePath)
 
 		return []PromptMessage{
 			{
@@ -126,6 +129,8 @@ After identifying all tests, use the **submit-test-metadata** tool with the foll
 
 		promptText := fmt.Sprintf(`Please analyze the test **%s** in file **%s**.
 
+Use repo-relative paths only. Do not submit container-specific absolute paths such as /app/... or /workspace/....
+
 **FIRST**: Read the test file using `+"`cat -n %s`"+` (or equivalent) so that every line is prefixed with its line number. This ensures accurate line references.
 
 1. Find the test **%s** and examine what it does.
@@ -143,7 +148,7 @@ For the test, identify:
 Use the **submit-test-metadata** tool with the following structure:
 
 {
-  "sourceFile": "path/to/source_file.go",
+  "sourceFile": "relative/path/to/source_file.go",
   "tests": [
     {
       "testFile": "%s",
@@ -162,7 +167,8 @@ Use the **submit-test-metadata** tool with the following structure:
 - "lineRange" refers to the lines in the TEST file (%s) where the test code is located
 - "functionName" must be the source function name (not the test name)
 - "coveredLines" refers to the lines in the SOURCE file that this test covers
-- "inputLines" and "outputLines" refer to lines in the TEST file`, testName, testFilePath, testFilePath, testName, testFilePath, testName, testFilePath)
+- "inputLines" and "outputLines" refer to lines in the TEST file
+- "sourceFile" and "testFile" must stay repo-relative to the server root`, testName, testFilePath, testFilePath, testName, testFilePath, testName, testFilePath)
 
 		return []PromptMessage{
 			{
