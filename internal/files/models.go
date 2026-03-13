@@ -236,3 +236,31 @@ type DeleteTestPathRequest struct {
 	TestFile   string `json:"testFile"`
 	TestName   string `json:"testName"`
 }
+
+// ==================== SEARCH TYPES ====================
+
+// SearchResultType indicates the type of search result
+type SearchResultType string
+
+const (
+	ResultTypeFile     SearchResultType = "file"
+	ResultTypeFunction SearchResultType = "function"
+	ResultTypeTest     SearchResultType = "test"
+)
+
+// SearchResult represents a single search result
+type SearchResult struct {
+	Type         SearchResultType `json:"type"`
+	Title        string           `json:"title"`        // Display title (file name, function name, or test name)
+	Subtitle     string           `json:"subtitle"`     // Additional context (path or parent function)
+	Path         string           `json:"path"`         // File path to navigate to
+	Line         int              `json:"line"`         // Line number to jump to (0 if not applicable)
+	Relevance    int              `json:"relevance"`    // Match quality score for sorting
+	MatchedText  string           `json:"matchedText"`  // The text that matched the query
+}
+
+// SearchResponse for GET /api/search
+type SearchResponse struct {
+	Query   string         `json:"query"`
+	Results []SearchResult `json:"results"`
+}

@@ -202,3 +202,22 @@ export interface MetadataIssue {
 export interface MetadataIssuesResponse {
   issues: MetadataIssue[];
 }
+
+// ==================== SEARCH TYPES ====================
+
+export type SearchResultType = 'file' | 'function' | 'test';
+
+export interface SearchResult {
+  type: SearchResultType;
+  title: string;
+  subtitle: string;
+  path: string;
+  line: number;
+  relevance: number;
+  matchedText: string;
+}
+
+export interface SearchResponse {
+  query: string;
+  results: SearchResult[];
+}

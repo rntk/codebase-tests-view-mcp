@@ -96,7 +96,7 @@ func (s *Store) GetTestMetadata(filePath string) *FileMetadata {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	return s.metadata[filePath]
+	return cloneFileMetadata(s.metadata[filePath])
 }
 
 // GetTestFileMetadata performs a reverse lookup: given a test file path, returns all source references
@@ -135,10 +135,32 @@ func (s *Store) GetAllMetadata() map[string]*FileMetadata {
 	// Return a copy to prevent external modification
 	copy := make(map[string]*FileMetadata, len(s.metadata))
 	for k, v := range s.metadata {
-		copy[k] = v
+		copy[k] = cloneFileMetadata(v)
 	}
 
 	return copy
+}
+
+func cloneFileMetadata(meta *FileMetadata) *FileMetadata {
+	if meta == nil {
+		return nil
+	}
+
+	cloned := &FileMetadata{}
+
+	if len(meta.Tests) > 0 {
+		cloned.Tests = append([]TestReference(nil), meta.Tests...)
+	}
+
+	if len(meta.Suggestions) > 0 {
+		cloned.Suggestions = append([]TestSuggestion(nil), meta.Suggestions...)
+	}
+
+	if len(meta.Comments) > 0 {
+		cloned.Comments = append([]files.Comment(nil), meta.Comments...)
+	}
+
+	return cloned
 }
 
 // load loads metadata from the JSON file
@@ -230,7 +252,7 @@ func (s *Store) GetSuggestions(filePath string) []TestSuggestion {
 		return nil
 	}
 
-	return meta.Suggestions
+	return append([]TestSuggestion(nil), meta.Suggestions...)
 }
 
 // ==================== COMMENT METHODS ====================
@@ -331,7 +353,7 @@ func (s *Store) GetComments(filePath string) []files.Comment {
 		return nil
 	}
 
-	return meta.Comments
+	return append([]files.Comment(nil), meta.Comments...)
 }
 
 // ToggleCommentResolved toggles the resolved status of a comment

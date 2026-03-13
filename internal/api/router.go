@@ -14,6 +14,9 @@ func SetupRoutes(h *Handler) *http.ServeMux {
 	mux.HandleFunc("DELETE /api/metadata/source-path", h.DeleteSourcePath)
 	mux.HandleFunc("DELETE /api/metadata/test-path", h.DeleteTestPath)
 
+	// Search endpoint (global search)
+	mux.HandleFunc("GET /api/search", h.Search)
+
 	// File operations
 	mux.HandleFunc("GET /api/files", h.ListFiles)
 	mux.HandleFunc("GET /api/files/{path...}", h.GetFileOrTests)

@@ -1,0 +1,1 @@
+export { GlobalSearchPalette } from './GlobalSearchPalette';

@@ -422,6 +422,58 @@ func TestGetAllMetadata(t *testing.T) {
 			t.Fatal("original metadata was affected by modification to copy")
 		}
 	})
+
+	t.Run("returns deep copy of nested metadata", func(t *testing.T) {
+		store := NewStore("")
+
+		err := store.SetTestMetadata("source.go", []TestReference{
+			{
+				TestFile:     "test_test.go",
+				TestName:     "TestOriginal",
+				LineRange:    LineRange{Start: 1, End: 10},
+				CoveredLines: LineRange{Start: 1, End: 5},
+			},
+		})
+		if err != nil {
+			t.Fatalf("SetTestMetadata failed: %v", err)
+		}
+
+		err = store.AddSuggestions("source.go", []TestSuggestion{
+			{
+				SuggestedName: "TestSuggestion",
+				Reason:        "Missing coverage",
+				TargetLines:   LineRange{Start: 20, End: 25},
+				Priority:      "high",
+			},
+		})
+		if err != nil {
+			t.Fatalf("AddSuggestions failed: %v", err)
+		}
+
+		_, err = store.AddComment("source.go", files.Comment{
+			Line:    7,
+			Content: "Original comment",
+		})
+		if err != nil {
+			t.Fatalf("AddComment failed: %v", err)
+		}
+
+		all := store.GetAllMetadata()
+		all["source.go"].Tests[0].TestName = "Mutated"
+		all["source.go"].Suggestions[0].Reason = "Changed"
+		all["source.go"].Comments[0].Content = "Updated"
+
+		original := store.GetTestMetadata("source.go")
+		if original.Tests[0].TestName != "TestOriginal" {
+			t.Fatalf("expected original test name to remain unchanged, got %q", original.Tests[0].TestName)
+		}
+		if original.Suggestions[0].Reason != "Missing coverage" {
+			t.Fatalf("expected original suggestion reason to remain unchanged, got %q", original.Suggestions[0].Reason)
+		}
+		if original.Comments[0].Content != "Original comment" {
+			t.Fatalf("expected original comment to remain unchanged, got %q", original.Comments[0].Content)
+		}
+	})
 }
 
 func TestStorePersistence(t *testing.T) {
@@ -612,6 +664,30 @@ func TestAddSuggestions(t *testing.T) {
 		result := store.GetSuggestions("source.go")
 		if result != nil {
 			t.Fatalf("expected nil, got %+v", result)
+		}
+	})
+
+	t.Run("GetSuggestions returns copy", func(t *testing.T) {
+		store := NewStore("")
+
+		err := store.AddSuggestions("source.go", []TestSuggestion{
+			{
+				SuggestedName: "TestCopy",
+				Reason:        "Original reason",
+				TargetLines:   LineRange{Start: 1, End: 2},
+				Priority:      "medium",
+			},
+		})
+		if err != nil {
+			t.Fatalf("AddSuggestions failed: %v", err)
+		}
+
+		result := store.GetSuggestions("source.go")
+		result[0].Reason = "Mutated"
+
+		fresh := store.GetSuggestions("source.go")
+		if fresh[0].Reason != "Original reason" {
+			t.Fatalf("expected original suggestion reason to remain unchanged, got %q", fresh[0].Reason)
 		}
 	})
 }
@@ -883,6 +959,26 @@ func TestCommentOperations(t *testing.T) {
 		comments := store.GetComments("source.go")
 		if len(comments) != 2 {
 			t.Fatalf("expected 2 comments, got %d", len(comments))
+		}
+	})
+
+	t.Run("GetComments returns copy", func(t *testing.T) {
+		store := NewStore("")
+
+		_, err := store.AddComment("source.go", files.Comment{
+			Line:    10,
+			Content: "Original",
+		})
+		if err != nil {
+			t.Fatalf("AddComment failed: %v", err)
+		}
+
+		comments := store.GetComments("source.go")
+		comments[0].Content = "Mutated"
+
+		fresh := store.GetComments("source.go")
+		if fresh[0].Content != "Original" {
+			t.Fatalf("expected original comment to remain unchanged, got %q", fresh[0].Content)
 		}
 	})
 }

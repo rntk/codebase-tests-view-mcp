@@ -896,3 +896,16 @@ func (h *Handler) canonicalizeExistingPath(path string) (string, error) {
 
 	return canonicalPath, nil
 }
+
+// Search handles GET /api/search
+func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
+	query := r.URL.Query().Get("q")
+
+	response := h.fileService.Search(query, h.metaStore)
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		return
+	}
+}

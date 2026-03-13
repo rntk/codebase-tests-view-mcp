@@ -317,3 +317,241 @@ func toSlash(path string) string {
 	}
 	return filepath.ToSlash(path)
 }
+
+// Search performs a global search across files, functions, and tests
+func (s *Service) Search(query string, metaStore interface {
+	GetAllMetadata() map[string]*FileMetadata
+}) *SearchResponse {
+	query = strings.ToLower(strings.TrimSpace(query))
+	if query == "" {
+		return &SearchResponse{
+			Query:   query,
+			Results: []SearchResult{},
+		}
+	}
+
+	var results []SearchResult
+
+	// Search files
+	fileResults := s.searchFiles(query)
+	results = append(results, fileResults...)
+
+	// Search functions and tests in metadata
+	metadataResults := s.searchMetadata(query, metaStore)
+	results = append(results, metadataResults...)
+
+	// Sort by relevance (highest first)
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Relevance > results[j].Relevance
+	})
+
+	return &SearchResponse{
+		Query:   query,
+		Results: results,
+	}
+}
+
+// searchFiles searches for files matching the query
+func (s *Service) searchFiles(query string) []SearchResult {
+	var results []SearchResult
+
+	// Walk the directory tree
+	err := filepath.Walk(s.baseDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // Skip errors, continue walking
+		}
+
+		// Skip directories (we only want files)
+		if info.IsDir() {
+			// Skip hidden directories
+			if isHiddenFile(info.Name()) {
+				return filepath.SkipDir
+			}
+			return nil
+		}
+
+		// Skip hidden files
+		if isHiddenFile(info.Name()) {
+			return nil
+		}
+
+		// Get relative path
+		relPath, err := filepath.Rel(s.baseDir, path)
+		if err != nil {
+			return nil
+		}
+
+		// Check for hidden components
+		if containsHiddenComponent(relPath) {
+			return nil
+		}
+
+		// Convert to forward slashes
+		relPath = filepath.ToSlash(relPath)
+
+		// Check if query matches file name or path
+		fileName := strings.ToLower(info.Name())
+		lowerPath := strings.ToLower(relPath)
+
+		var matched bool
+		var relevance int
+		var matchedText string
+
+		// Exact file name match (highest relevance)
+		if fileName == query {
+			matched = true
+			relevance = 100
+			matchedText = info.Name()
+		} else if strings.HasPrefix(fileName, query) {
+			// Prefix match on file name
+			matched = true
+			relevance = 80
+			matchedText = info.Name()
+		} else if strings.Contains(fileName, query) {
+			// Contains match on file name
+			matched = true
+			relevance = 60
+			matchedText = info.Name()
+		} else if strings.Contains(lowerPath, query) {
+			// Contains match on full path
+			matched = true
+			relevance = 40
+			matchedText = relPath
+		}
+
+		if matched {
+			results = append(results, SearchResult{
+				Type:        ResultTypeFile,
+				Title:       info.Name(),
+				Subtitle:    filepath.Dir(relPath),
+				Path:        relPath,
+				Line:        0,
+				Relevance:   relevance,
+				MatchedText: matchedText,
+			})
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		// Return partial results on error
+	}
+
+	return results
+}
+
+// searchMetadata searches functions and tests in metadata
+func (s *Service) searchMetadata(query string, metaStore interface {
+	GetAllMetadata() map[string]*FileMetadata
+}) []SearchResult {
+	var results []SearchResult
+
+	allMetadata := metaStore.GetAllMetadata()
+
+	// Track seen functions to avoid duplicates (sourceFile + functionName -> best match)
+	seenFunctions := make(map[string]*SearchResult)
+
+	for sourceFile, metadata := range allMetadata {
+		if metadata == nil {
+			continue
+		}
+
+		// Search functions - deduplicate by sourceFile + functionName
+		for _, testRef := range metadata.Tests {
+			funcName := testRef.FunctionName
+			lowerFuncName := strings.ToLower(funcName)
+
+			var matched bool
+			var relevance int
+			var matchedText string
+
+			if lowerFuncName == query {
+				matched = true
+				relevance = 95
+				matchedText = funcName
+			} else if strings.HasPrefix(lowerFuncName, query) {
+				matched = true
+				relevance = 75
+				matchedText = funcName
+			} else if strings.Contains(lowerFuncName, query) {
+				matched = true
+				relevance = 55
+				matchedText = funcName
+			}
+
+			if matched {
+				funcKey := sourceFile + "::" + funcName
+				existingResult := seenFunctions[funcKey]
+
+				if existingResult == nil {
+					// First match for this function
+					result := SearchResult{
+						Type:        ResultTypeFunction,
+						Title:       funcName,
+						Subtitle:    sourceFile,
+						Path:        sourceFile,
+						Line:        testRef.CoveredLines.Start,
+						Relevance:   relevance,
+						MatchedText: matchedText,
+					}
+					seenFunctions[funcKey] = &result
+				} else if relevance > existingResult.Relevance {
+					// Better match found (e.g., exact match vs prefix match)
+					existingResult.Relevance = relevance
+					existingResult.MatchedText = matchedText
+					// Use the earliest line number for better navigation
+					if testRef.CoveredLines.Start > 0 && testRef.CoveredLines.Start < existingResult.Line {
+						existingResult.Line = testRef.CoveredLines.Start
+					}
+				} else if relevance == existingResult.Relevance && testRef.CoveredLines.Start > 0 && testRef.CoveredLines.Start < existingResult.Line {
+					// Same relevance but earlier line number
+					existingResult.Line = testRef.CoveredLines.Start
+				}
+			}
+		}
+
+		// Search test names (no deduplication needed - each test is unique)
+		for _, testRef := range metadata.Tests {
+			testName := testRef.TestName
+			lowerTestName := strings.ToLower(testName)
+
+			var matched bool
+			var relevance int
+			var matchedText string
+
+			if lowerTestName == query {
+				matched = true
+				relevance = 90
+				matchedText = testName
+			} else if strings.HasPrefix(lowerTestName, query) {
+				matched = true
+				relevance = 70
+				matchedText = testName
+			} else if strings.Contains(lowerTestName, query) {
+				matched = true
+				relevance = 50
+				matchedText = testName
+			}
+
+			if matched {
+				results = append(results, SearchResult{
+					Type:        ResultTypeTest,
+					Title:       testName,
+					Subtitle:    testRef.TestFile,
+					Path:        testRef.TestFile,
+					Line:        testRef.LineRange.Start,
+					Relevance:   relevance,
+					MatchedText: matchedText,
+				})
+			}
+		}
+	}
+
+	// Add deduplicated function results
+	for _, result := range seenFunctions {
+		results = append(results, *result)
+	}
+
+	return results
+}

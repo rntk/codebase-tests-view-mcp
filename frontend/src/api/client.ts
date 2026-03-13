@@ -10,7 +10,8 @@ import type {
   ExportContextRequest,
   ExportContextResponse,
   OverviewResponse,
-  MetadataIssuesResponse
+  MetadataIssuesResponse,
+  SearchResponse
 } from '../types';
 
 const API_BASE = '/api';
@@ -183,4 +184,14 @@ export async function deleteTestPath(sourceFile: string, testFile: string, testN
   if (!response.ok) {
     throw new Error(await response.text() || `Failed to delete test path: ${response.statusText}`);
   }
+}
+
+// ==================== SEARCH API ====================
+
+export async function search(query: string): Promise<SearchResponse> {
+  const response = await fetch(`${API_BASE}/search?q=${encodeURIComponent(query)}`);
+  if (!response.ok) {
+    throw new Error(`Failed to search: ${response.statusText}`);
+  }
+  return response.json();
 }

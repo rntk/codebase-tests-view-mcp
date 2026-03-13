@@ -6,6 +6,7 @@ import { TestPanel } from './components/TestPanel/TestPanel';
 import { SuggestionsPanel } from './components/SuggestionsPanel/SuggestionsPanel';
 import { CommentPanel } from './components/CommentPanel';
 import { ExportModal } from './components/ExportModal';
+import { GlobalSearchPalette } from './components/GlobalSearchPalette';
 import { useFiles } from './hooks/useFiles';
 import { useFileContent } from './hooks/useFileContent';
 import { useTests } from './hooks/useTests';
@@ -16,7 +17,7 @@ import { useExport } from './hooks/useExport';
 import { useSources } from './hooks/useSources';
 import { useProjectOverview } from './hooks/useProjectOverview';
 import { useMetadataIssues } from './hooks/useMetadataIssues';
-import type { FileEntry, TestDetail } from './types';
+import type { FileEntry, TestDetail, SearchResult } from './types';
 import { filterItemsByLine } from './utils/testUtils';
 
 type RightPanelTab = 'tests' | 'suggestions' | 'comments';
@@ -39,6 +40,7 @@ function App() {
   const [highlightedTestIds, setHighlightedTestIds] = useState<Set<string>>(new Set());
   const [activeRightTab, setActiveRightTab] = useState<RightPanelTab>('tests');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [isSearchPaletteOpen, setIsSearchPaletteOpen] = useState(false);
 
   // Handle browser back/forward buttons
   useEffect(() => {
@@ -55,6 +57,20 @@ function App() {
 
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Global keyboard shortcut for search palette (Cmd+P / Ctrl+P)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Cmd+P or Ctrl+P
+      if ((e.metaKey || e.ctrlKey) && e.key === 'p') {
+        e.preventDefault();
+        setIsSearchPaletteOpen(prev => !prev);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   // Update URL when state changes
@@ -200,6 +216,13 @@ function App() {
     setSelectedLine(line);
     setHighlightedTestIds(new Set());
   };
+
+  // Handle search result selection
+  const handleSearchResultSelect = useCallback((result: SearchResult) => {
+    setSelectedFilePath(result.path);
+    setSelectedLine(result.line > 0 ? result.line : null);
+    setHighlightedTestIds(new Set());
+  }, []);
 
   // Handle export for AI
   const handleExportForAI = async () => {
@@ -364,6 +387,12 @@ function App() {
         onClose={handleCloseExportModal}
         exportData={exportData}
         loading={exportLoading}
+      />
+
+      <GlobalSearchPalette
+        isOpen={isSearchPaletteOpen}
+        onClose={() => setIsSearchPaletteOpen(false)}
+        onResultSelect={handleSearchResultSelect}
       />
     </>
   );
