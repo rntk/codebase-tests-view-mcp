@@ -1233,3 +1233,341 @@ func TestHandlerJSONErrors(t *testing.T) {
 		})
 	}
 }
+
+func TestUpdateSourcePath(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+
+	// Create test files
+	oldFile := filepath.Join(tmpDir, "old.go")
+	newFile := filepath.Join(tmpDir, "new.go")
+	if err := os.WriteFile(oldFile, []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newFile, []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Add metadata
+	handler.metaStore.SetTestMetadata("old.go", []files.TestReference{
+		{TestFile: "test.go", TestName: "Test", LineRange: files.LineRange{Start: 1, End: 5}},
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("PUT /api/metadata/source-path", handler.UpdateSourcePath)
+
+	t.Run("updates source path successfully", func(t *testing.T) {
+		reqBody := `{"oldPath": "old.go", "newPath": "new.go"}`
+		req := httptest.NewRequest("PUT", "/api/metadata/source-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusNoContent)
+		}
+
+		// Verify metadata moved
+		meta := handler.metaStore.GetTestMetadata("new.go")
+		if meta == nil {
+			t.Error("metadata should exist at new path")
+		}
+	})
+
+	t.Run("returns error for invalid JSON", func(t *testing.T) {
+		req := httptest.NewRequest("PUT", "/api/metadata/source-path", strings.NewReader("invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("returns error for missing paths", func(t *testing.T) {
+		reqBody := `{"oldPath": "", "newPath": ""}`
+		req := httptest.NewRequest("PUT", "/api/metadata/source-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("returns error for non-existent new path", func(t *testing.T) {
+		reqBody := `{"oldPath": "old.go", "newPath": "nonexistent.go"}`
+		req := httptest.NewRequest("PUT", "/api/metadata/source-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	_ = tmpDir
+}
+
+func TestUpdateTestPath(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+
+	// Create test files
+	oldTestFile := filepath.Join(tmpDir, "old_test.go")
+	newTestFile := filepath.Join(tmpDir, "new_test.go")
+	if err := os.WriteFile(oldTestFile, []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(newTestFile, []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	// Add metadata
+	handler.metaStore.SetTestMetadata("source.go", []files.TestReference{
+		{TestFile: "old_test.go", TestName: "TestSomething", LineRange: files.LineRange{Start: 1, End: 5}},
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("PUT /api/metadata/test-path", handler.UpdateTestPath)
+
+	t.Run("updates test path successfully", func(t *testing.T) {
+		reqBody := `{"sourceFile": "source.go", "testFile": "old_test.go", "testName": "TestSomething", "newTestFile": "new_test.go"}`
+		req := httptest.NewRequest("PUT", "/api/metadata/test-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusNoContent)
+		}
+
+		// Verify test path updated
+		meta := handler.metaStore.GetTestMetadata("source.go")
+		if meta == nil || meta.Tests[0].TestFile != "new_test.go" {
+			t.Error("test file path should be updated")
+		}
+	})
+
+	t.Run("returns error for invalid JSON", func(t *testing.T) {
+		req := httptest.NewRequest("PUT", "/api/metadata/test-path", strings.NewReader("invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("returns error for missing fields", func(t *testing.T) {
+		reqBody := `{"sourceFile": "", "testFile": "", "testName": "", "newTestFile": ""}`
+		req := httptest.NewRequest("PUT", "/api/metadata/test-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("returns error for non-existent new test file", func(t *testing.T) {
+		reqBody := `{"sourceFile": "source.go", "testFile": "old_test.go", "testName": "TestSomething", "newTestFile": "nonexistent.go"}`
+		req := httptest.NewRequest("PUT", "/api/metadata/test-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	_ = tmpDir
+}
+
+func TestDeleteSourcePath(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+
+	// Add metadata
+	handler.metaStore.SetTestMetadata("source.go", []files.TestReference{
+		{TestFile: "test.go", TestName: "Test", LineRange: files.LineRange{Start: 1, End: 5}},
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("DELETE /api/metadata/source-path", handler.DeleteSourcePath)
+
+	t.Run("deletes source path successfully", func(t *testing.T) {
+		reqBody := `{"path": "source.go"}`
+		req := httptest.NewRequest("DELETE", "/api/metadata/source-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusNoContent)
+		}
+
+		// Verify metadata deleted
+		meta := handler.metaStore.GetTestMetadata("source.go")
+		if meta != nil {
+			t.Error("metadata should be deleted")
+		}
+	})
+
+	t.Run("returns error for invalid JSON", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/metadata/source-path", strings.NewReader("invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("returns error for missing path", func(t *testing.T) {
+		reqBody := `{"path": ""}`
+		req := httptest.NewRequest("DELETE", "/api/metadata/source-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	_ = tmpDir
+}
+
+func TestDeleteTestPath(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+
+	// Add metadata
+	handler.metaStore.SetTestMetadata("source.go", []files.TestReference{
+		{TestFile: "test.go", TestName: "Test1", LineRange: files.LineRange{Start: 1, End: 5}},
+		{TestFile: "test.go", TestName: "Test2", LineRange: files.LineRange{Start: 6, End: 10}},
+	})
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("DELETE /api/metadata/test-path", handler.DeleteTestPath)
+
+	t.Run("deletes test path successfully", func(t *testing.T) {
+		reqBody := `{"sourceFile": "source.go", "testFile": "test.go", "testName": "Test1"}`
+		req := httptest.NewRequest("DELETE", "/api/metadata/test-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusNoContent {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusNoContent)
+		}
+
+		// Verify test deleted
+		meta := handler.metaStore.GetTestMetadata("source.go")
+		if meta == nil || len(meta.Tests) != 1 {
+			t.Errorf("expected 1 test, got %d", len(meta.Tests))
+		}
+	})
+
+	t.Run("returns error for invalid JSON", func(t *testing.T) {
+		req := httptest.NewRequest("DELETE", "/api/metadata/test-path", strings.NewReader("invalid"))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	t.Run("returns error for missing fields", func(t *testing.T) {
+		reqBody := `{"sourceFile": "", "testFile": "", "testName": ""}`
+		req := httptest.NewRequest("DELETE", "/api/metadata/test-path", strings.NewReader(reqBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusBadRequest)
+		}
+	})
+
+	_ = tmpDir
+}
+
+func TestSearchHandler(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+
+	// Create test files
+	if err := os.WriteFile(filepath.Join(tmpDir, "main.go"), []byte("package main"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/search", handler.Search)
+
+	t.Run("search returns results", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/search?q=main", nil)
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+
+		var resp files.SearchResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+
+		if resp.Query != "main" {
+			t.Errorf("query = %s, want main", resp.Query)
+		}
+	})
+
+	t.Run("search with empty query", func(t *testing.T) {
+		req := httptest.NewRequest("GET", "/api/search?q=", nil)
+		w := httptest.NewRecorder()
+
+		mux.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+		}
+
+		var resp files.SearchResponse
+		if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+			t.Fatalf("decode error: %v", err)
+		}
+
+		if len(resp.Results) != 0 {
+			t.Errorf("expected 0 results for empty query, got %d", len(resp.Results))
+		}
+	})
+
+	_ = tmpDir
+}

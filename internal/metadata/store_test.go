@@ -1,8 +1,10 @@
 package metadata
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"codebase-view-mcp/internal/files"
@@ -1033,6 +1035,343 @@ func TestStoreConcurrency(t *testing.T) {
 
 		for i := 0; i < 10; i++ {
 			<-done
+		}
+	})
+}
+
+func TestRenameSourcePath(t *testing.T) {
+	t.Run("renames source path successfully", func(t *testing.T) {
+		store := NewStore("")
+
+		// Add metadata
+		err := store.SetTestMetadata("old.go", []TestReference{
+			{
+				TestFile:     "test_test.go",
+				TestName:     "TestSomething",
+				LineRange:    LineRange{Start: 1, End: 10},
+				CoveredLines: LineRange{Start: 1, End: 5},
+			},
+		})
+		if err != nil {
+			t.Fatalf("SetTestMetadata failed: %v", err)
+		}
+
+		// Rename
+		err = store.RenameSourcePath("old.go", "new.go")
+		if err != nil {
+			t.Fatalf("RenameSourcePath failed: %v", err)
+		}
+
+		// Verify old path is gone
+		oldMeta := store.GetTestMetadata("old.go")
+		if oldMeta != nil {
+			t.Error("old path should not exist")
+		}
+
+		// Verify new path exists
+		newMeta := store.GetTestMetadata("new.go")
+		if newMeta == nil {
+			t.Fatal("new path should exist")
+		}
+		if len(newMeta.Tests) != 1 {
+			t.Errorf("expected 1 test, got %d", len(newMeta.Tests))
+		}
+	})
+
+	t.Run("returns error when old path not found", func(t *testing.T) {
+		store := NewStore("")
+
+		err := store.RenameSourcePath("nonexistent.go", "new.go")
+		if err == nil {
+			t.Fatal("expected error for non-existent old path")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("returns error when new path already exists", func(t *testing.T) {
+		store := NewStore("")
+
+		// Add metadata to both paths
+		store.SetTestMetadata("old.go", []TestReference{
+			{TestFile: "test1.go", TestName: "Test1", LineRange: LineRange{Start: 1, End: 5}},
+		})
+		store.SetTestMetadata("new.go", []TestReference{
+			{TestFile: "test2.go", TestName: "Test2", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		err := store.RenameSourcePath("old.go", "new.go")
+		if err == nil {
+			t.Fatal("expected error when new path already exists")
+		}
+		if !errors.Is(err, ErrAlreadyExists) {
+			t.Errorf("expected ErrAlreadyExists, got: %v", err)
+		}
+	})
+
+	t.Run("no-op when old and new paths are the same", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("same.go", []TestReference{
+			{TestFile: "test.go", TestName: "Test", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		err := store.RenameSourcePath("same.go", "same.go")
+		if err != nil {
+			t.Fatalf("RenameSourcePath failed: %v", err)
+		}
+
+		meta := store.GetTestMetadata("same.go")
+		if meta == nil {
+			t.Error("metadata should still exist")
+		}
+	})
+
+	t.Run("persists to file after rename", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		metaFile := filepath.Join(tmpDir, "metadata.json")
+
+		store := NewStore(metaFile)
+		store.SetTestMetadata("old.go", []TestReference{
+			{TestFile: "test.go", TestName: "Test", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		err := store.RenameSourcePath("old.go", "new.go")
+		if err != nil {
+			t.Fatalf("RenameSourcePath failed: %v", err)
+		}
+
+		// Load in new store
+		store2 := NewStore(metaFile)
+		meta := store2.GetTestMetadata("new.go")
+		if meta == nil {
+			t.Error("renamed metadata should be persisted")
+		}
+	})
+}
+
+func TestUpdateTestPath(t *testing.T) {
+	t.Run("updates test file path successfully", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("source.go", []TestReference{
+			{
+				TestFile:     "old_test.go",
+				TestName:     "TestSomething",
+				LineRange:    LineRange{Start: 1, End: 10},
+				CoveredLines: LineRange{Start: 1, End: 5},
+			},
+		})
+
+		err := store.UpdateTestPath("source.go", "old_test.go", "TestSomething", "new_test.go")
+		if err != nil {
+			t.Fatalf("UpdateTestPath failed: %v", err)
+		}
+
+		meta := store.GetTestMetadata("source.go")
+		if meta == nil || len(meta.Tests) != 1 {
+			t.Fatal("metadata not found")
+		}
+		if meta.Tests[0].TestFile != "new_test.go" {
+			t.Errorf("expected test file %q, got %q", "new_test.go", meta.Tests[0].TestFile)
+		}
+	})
+
+	t.Run("returns error when source file not found", func(t *testing.T) {
+		store := NewStore("")
+
+		err := store.UpdateTestPath("nonexistent.go", "test.go", "Test", "new.go")
+		if err == nil {
+			t.Fatal("expected error for non-existent source file")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("returns error when test reference not found", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "test.go", TestName: "TestOther", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		err := store.UpdateTestPath("source.go", "test.go", "TestNonExistent", "new.go")
+		if err == nil {
+			t.Fatal("expected error for non-existent test reference")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("returns error when new test file already has same test", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "old_test.go", TestName: "TestSomething", LineRange: LineRange{Start: 1, End: 5}},
+			{TestFile: "new_test.go", TestName: "TestSomething", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		err := store.UpdateTestPath("source.go", "old_test.go", "TestSomething", "new_test.go")
+		if err == nil {
+			t.Fatal("expected error when test already exists in new file")
+		}
+		if !errors.Is(err, ErrAlreadyExists) {
+			t.Errorf("expected ErrAlreadyExists, got: %v", err)
+		}
+	})
+
+	t.Run("persists to file after update", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		metaFile := filepath.Join(tmpDir, "metadata.json")
+
+		store := NewStore(metaFile)
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "old_test.go", TestName: "Test", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		store.UpdateTestPath("source.go", "old_test.go", "Test", "new_test.go")
+
+		store2 := NewStore(metaFile)
+		meta := store2.GetTestMetadata("source.go")
+		if meta == nil || meta.Tests[0].TestFile != "new_test.go" {
+			t.Error("updated test path should be persisted")
+		}
+	})
+}
+
+func TestDeleteSourcePath(t *testing.T) {
+	t.Run("deletes source path successfully", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "test.go", TestName: "Test", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		err := store.DeleteSourcePath("source.go")
+		if err != nil {
+			t.Fatalf("DeleteSourcePath failed: %v", err)
+		}
+
+		meta := store.GetTestMetadata("source.go")
+		if meta != nil {
+			t.Error("metadata should be deleted")
+		}
+	})
+
+	t.Run("no error when source path does not exist", func(t *testing.T) {
+		store := NewStore("")
+
+		err := store.DeleteSourcePath("nonexistent.go")
+		if err != nil {
+			t.Fatalf("DeleteSourcePath should not error for non-existent path: %v", err)
+		}
+	})
+
+	t.Run("persists deletion to file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		metaFile := filepath.Join(tmpDir, "metadata.json")
+
+		store := NewStore(metaFile)
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "test.go", TestName: "Test", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		store.DeleteSourcePath("source.go")
+
+		store2 := NewStore(metaFile)
+		meta := store2.GetTestMetadata("source.go")
+		if meta != nil {
+			t.Error("deletion should be persisted")
+		}
+	})
+}
+
+func TestDeleteTestPath(t *testing.T) {
+	t.Run("deletes single test reference", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "test.go", TestName: "Test1", LineRange: LineRange{Start: 1, End: 5}},
+			{TestFile: "test.go", TestName: "Test2", LineRange: LineRange{Start: 6, End: 10}},
+		})
+
+		err := store.DeleteTestPath("source.go", "test.go", "Test1")
+		if err != nil {
+			t.Fatalf("DeleteTestPath failed: %v", err)
+		}
+
+		meta := store.GetTestMetadata("source.go")
+		if meta == nil || len(meta.Tests) != 1 {
+			t.Fatalf("expected 1 test, got %d", len(meta.Tests))
+		}
+		if meta.Tests[0].TestName != "Test2" {
+			t.Errorf("expected Test2 to remain, got %s", meta.Tests[0].TestName)
+		}
+	})
+
+	t.Run("returns error when source file not found", func(t *testing.T) {
+		store := NewStore("")
+
+		err := store.DeleteTestPath("nonexistent.go", "test.go", "Test")
+		if err == nil {
+			t.Fatal("expected error for non-existent source file")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("returns error when test reference not found", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "test.go", TestName: "TestOther", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		err := store.DeleteTestPath("source.go", "test.go", "TestNonExistent")
+		if err == nil {
+			t.Fatal("expected error for non-existent test")
+		}
+		if !strings.Contains(err.Error(), "not found") {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("deletes last test removes metadata entry", func(t *testing.T) {
+		store := NewStore("")
+
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "test.go", TestName: "TestOnly", LineRange: LineRange{Start: 1, End: 5}},
+		})
+
+		store.DeleteTestPath("source.go", "test.go", "TestOnly")
+
+		meta := store.GetTestMetadata("source.go")
+		// Metadata entry exists but has no tests
+		if meta != nil && len(meta.Tests) != 0 {
+			t.Error("test should be deleted")
+		}
+	})
+
+	t.Run("persists deletion to file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		metaFile := filepath.Join(tmpDir, "metadata.json")
+
+		store := NewStore(metaFile)
+		store.SetTestMetadata("source.go", []TestReference{
+			{TestFile: "test.go", TestName: "Test1", LineRange: LineRange{Start: 1, End: 5}},
+			{TestFile: "test.go", TestName: "Test2", LineRange: LineRange{Start: 6, End: 10}},
+		})
+
+		store.DeleteTestPath("source.go", "test.go", "Test1")
+
+		store2 := NewStore(metaFile)
+		meta := store2.GetTestMetadata("source.go")
+		if meta == nil || len(meta.Tests) != 1 {
+			t.Error("deletion should be persisted")
 		}
 	})
 }

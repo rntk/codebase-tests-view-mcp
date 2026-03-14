@@ -860,3 +860,338 @@ func TestFileSizeLimit(t *testing.T) {
 		}
 	})
 }
+
+func TestBaseDir(t *testing.T) {
+	t.Run("returns configured base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+
+		result := service.BaseDir()
+		if result != baseDir {
+			t.Errorf("expected BaseDir %q, got %q", baseDir, result)
+		}
+	})
+}
+
+func TestServiceResolvePath(t *testing.T) {
+	t.Run("resolves relative path to absolute", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+
+		// Create a file
+		testFile := filepath.Join(baseDir, "subdir", "test.txt")
+		if err := os.MkdirAll(filepath.Dir(testFile), 0755); err != nil {
+			t.Fatalf("mkdirAll: %v", err)
+		}
+		if err := os.WriteFile(testFile, []byte("hello"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		absPath, err := service.ResolvePath("subdir/test.txt")
+		if err != nil {
+			t.Fatalf("ResolvePath failed: %v", err)
+		}
+
+		expected := filepath.Join(baseDir, "subdir", "test.txt")
+		if absPath != expected {
+			t.Errorf("expected path %q, got %q", expected, absPath)
+		}
+	})
+
+	t.Run("resolves dot path to base directory", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+
+		absPath, err := service.ResolvePath(".")
+		if err != nil {
+			t.Fatalf("ResolvePath failed: %v", err)
+		}
+
+		if absPath != baseDir {
+			t.Errorf("expected path %q, got %q", baseDir, absPath)
+		}
+	})
+
+	t.Run("rejects path traversal outside base", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+
+		_, err := service.ResolvePath("../outside")
+		if err == nil {
+			t.Fatal("expected error for path traversal")
+		}
+
+		if !strings.Contains(err.Error(), "outside") {
+			t.Fatalf("unexpected error: %v", err)
+		}
+	})
+}
+
+// MockMetaStore for testing Search functionality
+type MockMetaStore struct {
+	metadata map[string]*FileMetadata
+}
+
+func (m *MockMetaStore) GetAllMetadata() map[string]*FileMetadata {
+	return m.metadata
+}
+
+func TestSearch(t *testing.T) {
+	t.Run("returns empty results for empty query", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+		mockStore := &MockMetaStore{metadata: make(map[string]*FileMetadata)}
+
+		result := service.Search("", mockStore)
+
+		if result.Query != "" {
+			t.Errorf("expected empty query, got %q", result.Query)
+		}
+		if len(result.Results) != 0 {
+			t.Errorf("expected 0 results, got %d", len(result.Results))
+		}
+	})
+
+	t.Run("searches files by name", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create test files
+		if err := os.WriteFile(filepath.Join(baseDir, "main.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, "utils.go"), []byte("package utils"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		mockStore := &MockMetaStore{metadata: make(map[string]*FileMetadata)}
+
+		result := service.Search("main", mockStore)
+
+		if len(result.Results) == 0 {
+			t.Fatal("expected results for 'main' query")
+		}
+
+		found := false
+		for _, r := range result.Results {
+			if r.Title == "main.go" {
+				found = true
+				if r.Type != ResultTypeFile {
+					t.Errorf("expected type file, got %v", r.Type)
+				}
+				// "main" is a prefix of "main.go", so relevance is 80
+				if r.Relevance != 80 {
+					t.Errorf("expected relevance 80 for prefix match, got %d", r.Relevance)
+				}
+			}
+		}
+		if !found {
+			t.Error("main.go not found in results")
+		}
+	})
+
+	t.Run("searches files by path contains", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create nested directory with file
+		subdir := filepath.Join(baseDir, "internal", "api")
+		if err := os.MkdirAll(subdir, 0755); err != nil {
+			t.Fatalf("mkdirAll: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(subdir, "handlers.go"), []byte("package api"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		mockStore := &MockMetaStore{metadata: make(map[string]*FileMetadata)}
+
+		result := service.Search("internal", mockStore)
+
+		found := false
+		for _, r := range result.Results {
+			if strings.Contains(r.Path, "internal") {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("no results found containing 'internal' in path")
+		}
+	})
+
+	t.Run("searches functions in metadata", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+
+		mockStore := &MockMetaStore{
+			metadata: map[string]*FileMetadata{
+				"source.go": {
+					Tests: []TestReference{
+						{
+							FunctionName: "ProcessData",
+							TestFile:     "source_test.go",
+							TestName:     "TestProcessData",
+							CoveredLines: LineRange{Start: 10, End: 20},
+						},
+					},
+				},
+			},
+		}
+
+		result := service.Search("process", mockStore)
+
+		found := false
+		for _, r := range result.Results {
+			if r.Type == ResultTypeFunction && r.Title == "ProcessData" {
+				found = true
+				// "process" is a prefix of "ProcessData", so relevance is 75
+				if r.Relevance != 75 {
+					t.Errorf("expected relevance 75 for prefix function match, got %d", r.Relevance)
+				}
+			}
+		}
+		if !found {
+			t.Error("ProcessData function not found in results")
+		}
+	})
+
+	t.Run("searches tests in metadata", func(t *testing.T) {
+		baseDir := t.TempDir()
+		service := NewService(baseDir)
+
+		mockStore := &MockMetaStore{
+			metadata: map[string]*FileMetadata{
+				"source.go": {
+					Tests: []TestReference{
+						{
+							FunctionName: "ProcessData",
+							TestFile:     "source_test.go",
+							TestName:     "TestProcessDataSuccess",
+							LineRange:    LineRange{Start: 1, End: 10},
+						},
+					},
+				},
+			},
+		}
+
+		result := service.Search("success", mockStore)
+
+		found := false
+		for _, r := range result.Results {
+			if r.Type == ResultTypeTest && strings.Contains(r.Title, "Success") {
+				found = true
+			}
+		}
+		if !found {
+			t.Error("TestProcessDataSuccess not found in results")
+		}
+	})
+
+	t.Run("sorts results by relevance", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create files with different match quality
+		if err := os.WriteFile(filepath.Join(baseDir, "exact.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, "prefix_match.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		mockStore := &MockMetaStore{metadata: make(map[string]*FileMetadata)}
+
+		result := service.Search("exact", mockStore)
+
+		if len(result.Results) == 0 {
+			t.Fatal("expected results")
+		}
+
+		// Check that results are sorted by relevance (highest first)
+		for i := 1; i < len(result.Results); i++ {
+			if result.Results[i].Relevance > result.Results[i-1].Relevance {
+				t.Error("results not sorted by relevance (descending)")
+			}
+		}
+	})
+
+	t.Run("case insensitive search", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		if err := os.WriteFile(filepath.Join(baseDir, "MyFile.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		mockStore := &MockMetaStore{metadata: make(map[string]*FileMetadata)}
+
+		result := service.Search("myfile", mockStore)
+
+		found := false
+		for _, r := range result.Results {
+			if r.Title == "MyFile.go" {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Error("case insensitive search failed")
+		}
+	})
+
+	t.Run("skips hidden files in search", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		if err := os.WriteFile(filepath.Join(baseDir, ".hidden.go"), []byte("secret"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, "visible.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		mockStore := &MockMetaStore{metadata: make(map[string]*FileMetadata)}
+
+		result := service.Search("hidden", mockStore)
+
+		for _, r := range result.Results {
+			if r.Title == ".hidden.go" {
+				t.Error("hidden file should not appear in search results")
+			}
+		}
+	})
+
+	t.Run("prefix match has higher relevance than contains", func(t *testing.T) {
+		baseDir := t.TempDir()
+
+		// Create files: "test_main.go" (prefix match) and "my_test.go" (contains match)
+		if err := os.WriteFile(filepath.Join(baseDir, "test_main.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+		if err := os.WriteFile(filepath.Join(baseDir, "my_test_file.go"), []byte("package main"), 0644); err != nil {
+			t.Fatalf("write file: %v", err)
+		}
+
+		service := NewService(baseDir)
+		mockStore := &MockMetaStore{metadata: make(map[string]*FileMetadata)}
+
+		result := service.Search("test", mockStore)
+
+		var prefixMatch, containsMatch *SearchResult
+		for i, r := range result.Results {
+			if r.Title == "test_main.go" {
+				prefixMatch = &result.Results[i]
+			}
+			if r.Title == "my_test_file.go" {
+				containsMatch = &result.Results[i]
+			}
+		}
+
+		if prefixMatch != nil && containsMatch != nil {
+			if prefixMatch.Relevance <= containsMatch.Relevance {
+				t.Errorf("prefix match (%d) should have higher relevance than contains match (%d)",
+					prefixMatch.Relevance, containsMatch.Relevance)
+			}
+		}
+	})
+}
