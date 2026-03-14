@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -39,13 +40,13 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 
 	response, err := h.fileService.ListFiles(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeError(w, http.StatusNotFound, ErrFileNotFound, err.Error(), nil)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -54,19 +55,19 @@ func (h *Handler) ListFiles(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
 	// Read file content
 	fileContent, err := h.fileService.ReadFile(canonicalPath)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeError(w, http.StatusNotFound, ErrFileNotFound, err.Error(), nil)
 		return
 	}
 
@@ -93,7 +94,7 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -102,12 +103,12 @@ func (h *Handler) GetFile(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
@@ -121,7 +122,7 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 		}
 		w.Header().Set("Content-Type", "application/json")
 		if err := json.NewEncoder(w).Encode(response); err != nil {
-			http.Error(w, "failed to encode response", http.StatusInternalServerError)
+			writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 			return
 		}
 		return
@@ -172,7 +173,7 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -181,12 +182,12 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetSources(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
@@ -202,7 +203,7 @@ func (h *Handler) GetSources(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -211,12 +212,12 @@ func (h *Handler) GetSources(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetSuggestions(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
@@ -233,7 +234,7 @@ func (h *Handler) GetSuggestions(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -241,7 +242,7 @@ func (h *Handler) GetSuggestions(w http.ResponseWriter, r *http.Request) {
 // HandleMCP handles POST /api/mcp
 func (h *Handler) HandleMCP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		writeError(w, http.StatusMethodNotAllowed, ErrMethodNotAllowed, "method not allowed", nil)
 		return
 	}
 
@@ -262,12 +263,12 @@ func (h *Handler) ServeStatic(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
@@ -283,7 +284,7 @@ func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -292,28 +293,28 @@ func (h *Handler) GetComments(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
 	var req files.CommentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "invalid request body", nil)
 		return
 	}
 
 	if req.Line < 1 {
-		http.Error(w, "line must be >= 1", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrValidation, "line must be >= 1", map[string]interface{}{"field": "line"})
 		return
 	}
 
 	if strings.TrimSpace(req.Content) == "" {
-		http.Error(w, "content is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrValidation, "content is required", map[string]interface{}{"field": "content"})
 		return
 	}
 
@@ -325,7 +326,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 
 	created, err := h.metaStore.AddComment(canonicalPath, comment)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrInternal, err.Error(), nil)
 		return
 	}
 
@@ -333,7 +334,7 @@ func (h *Handler) CreateComment(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -343,12 +344,12 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	commentID := r.PathValue("commentId")
 	if path == "" || commentID == "" {
-		http.Error(w, "path and commentId are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path and commentId are required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
@@ -356,17 +357,17 @@ func (h *Handler) UpdateComment(w http.ResponseWriter, r *http.Request) {
 		Content string `json:"content"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "invalid request body", nil)
 		return
 	}
 
 	if strings.TrimSpace(req.Content) == "" {
-		http.Error(w, "content is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrValidation, "content is required", map[string]interface{}{"field": "content"})
 		return
 	}
 
 	if err := h.metaStore.UpdateComment(canonicalPath, commentID, strings.TrimSpace(req.Content)); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrInternal, err.Error(), nil)
 		return
 	}
 
@@ -378,17 +379,17 @@ func (h *Handler) DeleteComment(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	commentID := r.PathValue("commentId")
 	if path == "" || commentID == "" {
-		http.Error(w, "path and commentId are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path and commentId are required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
 	if err := h.metaStore.DeleteComment(canonicalPath, commentID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrInternal, err.Error(), nil)
 		return
 	}
 
@@ -400,17 +401,17 @@ func (h *Handler) ToggleCommentResolved(w http.ResponseWriter, r *http.Request) 
 	path := r.PathValue("path")
 	commentID := r.PathValue("commentId")
 	if path == "" || commentID == "" {
-		http.Error(w, "path and commentId are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path and commentId are required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
 	if err := h.metaStore.ToggleCommentResolved(canonicalPath, commentID); err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrInternal, err.Error(), nil)
 		return
 	}
 
@@ -422,12 +423,12 @@ func (h *Handler) ToggleCommentResolved(w http.ResponseWriter, r *http.Request) 
 func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 	path := r.PathValue("path")
 	if path == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
 		return
 	}
 	canonicalPath, err := h.fileService.CanonicalizePath(path)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
@@ -446,7 +447,7 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 	// Get file content
 	fileContent, err := h.fileService.ReadFile(canonicalPath)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusNotFound)
+		writeError(w, http.StatusNotFound, ErrFileNotFound, err.Error(), nil)
 		return
 	}
 
@@ -535,7 +536,7 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -595,7 +596,7 @@ func (h *Handler) GetMetadataIssues(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(files.MetadataIssuesResponse{Issues: issues}); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -604,26 +605,28 @@ func (h *Handler) GetMetadataIssues(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateSourcePath(w http.ResponseWriter, r *http.Request) {
 	var req files.UpdateSourcePathRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "invalid request body", nil)
 		return
 	}
 	if strings.TrimSpace(req.OldPath) == "" || strings.TrimSpace(req.NewPath) == "" {
-		http.Error(w, "oldPath and newPath are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrValidation, "oldPath and newPath are required", nil)
 		return
 	}
 
 	newPath, err := h.canonicalizeExistingPath(req.NewPath)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
 	if err := h.metaStore.RenameSourcePath(req.OldPath, newPath); err != nil {
 		status := http.StatusBadRequest
-		if strings.Contains(err.Error(), "already exists") {
+		code := ErrInvalidRequest
+		if errors.Is(err, metadata.ErrAlreadyExists) {
 			status = http.StatusConflict
+			code = ErrConflict
 		}
-		http.Error(w, err.Error(), status)
+		writeError(w, status, code, err.Error(), nil)
 		return
 	}
 
@@ -634,26 +637,28 @@ func (h *Handler) UpdateSourcePath(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) UpdateTestPath(w http.ResponseWriter, r *http.Request) {
 	var req files.UpdateTestPathRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "invalid request body", nil)
 		return
 	}
 	if strings.TrimSpace(req.SourceFile) == "" || strings.TrimSpace(req.TestFile) == "" || strings.TrimSpace(req.TestName) == "" || strings.TrimSpace(req.NewTestFile) == "" {
-		http.Error(w, "sourceFile, testFile, testName, and newTestFile are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrValidation, "sourceFile, testFile, testName, and newTestFile are required", nil)
 		return
 	}
 
 	newTestFile, err := h.canonicalizeExistingPath(req.NewTestFile)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
 		return
 	}
 
 	if err := h.metaStore.UpdateTestPath(req.SourceFile, req.TestFile, req.TestName, newTestFile); err != nil {
 		status := http.StatusBadRequest
-		if strings.Contains(err.Error(), "already exists") {
+		code := ErrInvalidRequest
+		if errors.Is(err, metadata.ErrAlreadyExists) {
 			status = http.StatusConflict
+			code = ErrConflict
 		}
-		http.Error(w, err.Error(), status)
+		writeError(w, status, code, err.Error(), nil)
 		return
 	}
 
@@ -664,16 +669,16 @@ func (h *Handler) UpdateTestPath(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteSourcePath(w http.ResponseWriter, r *http.Request) {
 	var req files.DeleteSourcePathRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "invalid request body", nil)
 		return
 	}
 	if strings.TrimSpace(req.Path) == "" {
-		http.Error(w, "path is required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrValidation, "path is required", nil)
 		return
 	}
 
 	if err := h.metaStore.DeleteSourcePath(req.Path); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, err.Error(), nil)
 		return
 	}
 
@@ -684,16 +689,16 @@ func (h *Handler) DeleteSourcePath(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) DeleteTestPath(w http.ResponseWriter, r *http.Request) {
 	var req files.DeleteTestPathRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid request body", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "invalid request body", nil)
 		return
 	}
 	if strings.TrimSpace(req.SourceFile) == "" || strings.TrimSpace(req.TestFile) == "" || strings.TrimSpace(req.TestName) == "" {
-		http.Error(w, "sourceFile, testFile, and testName are required", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrValidation, "sourceFile, testFile, and testName are required", nil)
 		return
 	}
 
 	if err := h.metaStore.DeleteTestPath(req.SourceFile, req.TestFile, req.TestName); err != nil {
-		http.Error(w, err.Error(), http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, ErrInvalidRequest, err.Error(), nil)
 		return
 	}
 
@@ -857,7 +862,7 @@ func (h *Handler) GetOverview(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }
@@ -909,7 +914,7 @@ func (h *Handler) Search(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "failed to encode response", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
 		return
 	}
 }

@@ -12,6 +12,9 @@ import (
 	"github.com/google/uuid"
 )
 
+// ErrAlreadyExists is returned when a metadata entry or test reference already exists.
+var ErrAlreadyExists = fmt.Errorf("already exists")
+
 // Store manages test metadata storage
 type Store struct {
 	mu       sync.RWMutex
@@ -394,7 +397,7 @@ func (s *Store) RenameSourcePath(oldPath, newPath string) error {
 		return nil
 	}
 	if s.metadata[newPath] != nil {
-		return fmt.Errorf("metadata entry already exists for %s", newPath)
+		return fmt.Errorf("metadata entry already exists for %s: %w", newPath, ErrAlreadyExists)
 	}
 
 	s.metadata[newPath] = existing
@@ -433,7 +436,7 @@ func (s *Store) UpdateTestPath(sourceFile, testFile, testName, newTestFile strin
 			continue
 		}
 		if test.TestFile == newTestFile && test.TestName == testName {
-			return fmt.Errorf("test reference already exists for %s (%s)", newTestFile, testName)
+			return fmt.Errorf("test reference already exists for %s (%s): %w", newTestFile, testName, ErrAlreadyExists)
 		}
 	}
 

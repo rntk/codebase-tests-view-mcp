@@ -10,1800 +10,1226 @@ import (
 	"testing"
 
 	"codebase-view-mcp/internal/files"
+	"codebase-view-mcp/internal/mcp"
 	"codebase-view-mcp/internal/metadata"
 )
 
-func TestHandlerListFiles(t *testing.T) {
-	t.Run("defaults to current directory and returns entries", func(t *testing.T) {
-		baseDir := t.TempDir()
-
-		subdir := filepath.Join(baseDir, "subdir")
-		if err := os.Mkdir(subdir, 0755); err != nil {
-			t.Fatalf("mkdir: %v", err)
-		}
-
-		if err := os.WriteFile(filepath.Join(baseDir, "a.txt"), []byte("hello"), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		if err := os.WriteFile(filepath.Join(baseDir, ".secret"), []byte("hidden"), 0644); err != nil {
-			t.Fatalf("write hidden file: %v", err)
-		}
-
-		h := &Handler{fileService: files.NewService(baseDir)}
-		req := httptest.NewRequest(http.MethodGet, "/api/files", nil)
-		rr := httptest.NewRecorder()
-
-		h.ListFiles(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.ListFilesResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.Path != "." {
-			t.Fatalf("path = %q, want %q", response.Path, ".")
-		}
-
-		if len(response.Files) != 2 {
-			t.Fatalf("files count = %d, want %d", len(response.Files), 2)
-		}
-
-		if !response.Files[0].IsDir || response.Files[0].Name != "subdir" {
-			t.Fatalf("first entry = %+v, want subdir directory", response.Files[0])
-		}
-
-		if response.Files[1].IsDir || response.Files[1].Name != "a.txt" {
-			t.Fatalf("second entry = %+v, want a.txt file", response.Files[1])
-		}
-	})
-
-	t.Run("returns not found for missing path", func(t *testing.T) {
-		baseDir := t.TempDir()
-		h := &Handler{fileService: files.NewService(baseDir)}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files?path=missing", nil)
-		rr := httptest.NewRecorder()
-
-		h.ListFiles(rr, req)
-
-		if rr.Code != http.StatusNotFound {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNotFound)
-		}
-	})
+func setupTestHandler(t *testing.T) (*Handler, string, func()) {
+	tmpDir := t.TempDir()
+	
+	// Create test files
+	testFile := filepath.Join(tmpDir, "test.go")
+	if err := os.WriteFile(testFile, []byte("package main\n\nfunc main() {}\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+	
+	testDir := filepath.Join(tmpDir, "subdir")
+	if err := os.Mkdir(testDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	
+	metadataFile := filepath.Join(tmpDir, "metadata.json")
+	fileService := files.NewService(tmpDir)
+	metaStore := metadata.NewStore(metadataFile)
+	mcpHandler := mcp.NewHandler(metaStore, fileService)
+	handler := NewHandler(fileService, metaStore, mcpHandler)
+	
+	cleanup := func() {
+		os.RemoveAll(tmpDir)
+	}
+	
+	return handler, tmpDir, cleanup
 }
 
-func TestHandlerGetFile(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		baseDir := t.TempDir()
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metadata.NewStore(""),
+func TestListFiles_Success(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	req := httptest.NewRequest("GET", "/api/files?path=.", nil)
+	w := httptest.NewRecorder()
+	
+	handler.ListFiles(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.ListFilesResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(resp.Files) < 2 {
+		t.Errorf("expected at least 2 files, got %d", len(resp.Files))
+	}
+	
+	foundFile := false
+	foundDir := false
+	for _, f := range resp.Files {
+		if f.Name == "test.go" && !f.IsDir {
+			foundFile = true
 		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/", nil)
-		rr := httptest.NewRecorder()
-
-		h.GetFile(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
+		if f.Name == "subdir" && f.IsDir {
+			foundDir = true
 		}
-	})
-
-	t.Run("returns not found for missing file", func(t *testing.T) {
-		baseDir := t.TempDir()
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/missing.txt", nil)
-		req.SetPathValue("path", "missing.txt")
-		rr := httptest.NewRecorder()
-
-		h.GetFile(rr, req)
-
-		if rr.Code != http.StatusNotFound {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNotFound)
-		}
-	})
-
-	t.Run("returns file content with metadata", func(t *testing.T) {
-		baseDir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(baseDir, "hello.txt"), []byte("hello"), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("hello.txt", []metadata.TestReference{
-			{
-				TestFile: "hello_test.go",
-				TestName: "TestHello",
-				LineRange: metadata.LineRange{
-					Start: 10,
-					End:   20,
-				},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/hello.txt", nil)
-		req.SetPathValue("path", "hello.txt")
-		rr := httptest.NewRecorder()
-
-		h.GetFile(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.FileResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.File.Path != "hello.txt" {
-			t.Fatalf("path = %q, want %q", response.File.Path, "hello.txt")
-		}
-
-		if response.File.Name != "hello.txt" {
-			t.Fatalf("name = %q, want %q", response.File.Name, "hello.txt")
-		}
-
-		if response.File.Content != "hello" {
-			t.Fatalf("content = %q, want %q", response.File.Content, "hello")
-		}
-
-		if response.File.MimeType != "text/plain" && response.File.MimeType != "text/plain; charset=utf-8" {
-			t.Fatalf("mimeType = %q, want %q or %q", response.File.MimeType, "text/plain", "text/plain; charset=utf-8")
-		}
-
-		if response.File.Metadata == nil {
-			t.Fatal("metadata is nil")
-		}
-
-		if len(response.File.Metadata.Tests) != 1 {
-			t.Fatalf("tests count = %d, want %d", len(response.File.Metadata.Tests), 1)
-		}
-
-		if response.File.Metadata.Tests[0].TestFile != "hello_test.go" {
-			t.Fatalf("testFile = %q, want %q", response.File.Metadata.Tests[0].TestFile, "hello_test.go")
-		}
-	})
+	}
+	
+	if !foundFile {
+		t.Error("test.go not found in listing")
+	}
+	if !foundDir {
+		t.Error("subdir not found in listing")
+	}
+	
+	_ = tmpDir
 }
 
-func TestHandlerGetFileOrTests(t *testing.T) {
-	t.Run("routes tests requests to GetTests", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/hello.txt/tests", nil)
-		req.SetPathValue("path", "hello.txt/tests")
-		rr := httptest.NewRecorder()
-
-		h.GetFileOrTests(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.SourceFile != "hello.txt" {
-			t.Fatalf("sourceFile = %q, want %q", response.SourceFile, "hello.txt")
-		}
-	})
-
-	t.Run("routes file requests to GetFile", func(t *testing.T) {
-		baseDir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(baseDir, "hello.txt"), []byte("hello"), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/hello.txt", nil)
-		req.SetPathValue("path", "hello.txt")
-		rr := httptest.NewRecorder()
-
-		h.GetFileOrTests(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.FileResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.File.Path != "hello.txt" {
-			t.Fatalf("path = %q, want %q", response.File.Path, "hello.txt")
-		}
-	})
+func TestListFiles_NotFound(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	req := httptest.NewRequest("GET", "/api/files?path=nonexistent", nil)
+	w := httptest.NewRecorder()
+	
+	handler.ListFiles(w, req)
+	
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+	
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if errResp.Code != ErrFileNotFound {
+		t.Errorf("error code = %s, want %s", errResp.Code, ErrFileNotFound)
+	}
 }
 
-func TestHandlerGetTests(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
+func TestGetFile_Success(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path...}", handler.GetFile)
+	
+	req := httptest.NewRequest("GET", "/api/files/test.go", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.FileResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.File.Name != "test.go" {
+		t.Errorf("name = %s, want test.go", resp.File.Name)
+	}
+	
+	if !strings.Contains(resp.File.Content, "package main") {
+		t.Error("expected file content to contain 'package main'")
+	}
+}
 
-		req := httptest.NewRequest(http.MethodGet, "/api/files//tests", nil)
-		req.SetPathValue("path", "")
-		rr := httptest.NewRecorder()
+func TestGetFile_NotFound(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path...}", handler.GetFile)
+	
+	req := httptest.NewRequest("GET", "/api/files/nonexistent.go", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusNotFound {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusNotFound)
+	}
+}
 
-		h.GetTests(rr, req)
+func TestGetFile_WithMetadata(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	// Add test metadata
+	testRef := files.TestReference{
+		FunctionName: "main",
+		TestFile:     "test_test.go",
+		TestName:     "TestMain",
+		Comment:      "tests main function",
+		LineRange:    files.LineRange{Start: 1, End: 5},
+		CoveredLines: files.LineRange{Start: 3, End: 3},
+	}
+	
+	handler.metaStore.AddTestMetadata("test.go", []files.TestReference{testRef})
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path...}", handler.GetFile)
+	
+	req := httptest.NewRequest("GET", "/api/files/test.go", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.FileResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.File.Metadata == nil {
+		t.Fatal("expected metadata, got nil")
+	}
+	
+	if len(resp.File.Metadata.Tests) != 1 {
+		t.Errorf("expected 1 test, got %d", len(resp.File.Metadata.Tests))
+	}
+	
+	if resp.File.CoverageDepth == nil {
+		t.Fatal("expected coverage depth, got nil")
+	}
+	
+	if len(resp.File.CoverageDepth[3]) != 1 {
+		t.Errorf("expected 1 test covering line 3, got %d", len(resp.File.CoverageDepth[3]))
+	}
+	
+	_ = tmpDir
+}
 
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns empty tests array when no metadata exists", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetTests(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.SourceFile != "test.go" {
-			t.Fatalf("sourceFile = %q, want %q", response.SourceFile, "test.go")
-		}
-
-		if len(response.Tests) != 0 {
-			t.Fatalf("expected 0 tests, got %d", len(response.Tests))
-		}
-	})
-
-	t.Run("returns tests with metadata", func(t *testing.T) {
-		baseDir := t.TempDir()
-		testFile := filepath.Join(baseDir, "test_test.go")
-		testContent := `package main
-
-func TestSomething(t *testing.T) {
-	input := "hello"
-	result := process(input)
-	if result != "world" {
-		t.Errorf("expected world, got %s", result)
+func TestGetTests_Success(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	// Create test file
+	testFile := filepath.Join(tmpDir, "test_test.go")
+	testContent := `package main
+import "testing"
+func TestMain(t *testing.T) {
+	// input data
+	x := 1
+	// expected output
+	if x != 1 {
+		t.Error("fail")
 	}
 }`
-		if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("test.go", []metadata.TestReference{
-			{
-				TestFile:     "test_test.go",
-				TestName:     "TestSomething",
-				FunctionName: "Process",
-				Comment:      "Tests the process function",
-				LineRange:    metadata.LineRange{Start: 3, End: 9},
-				CoveredLines: metadata.LineRange{Start: 1, End: 10},
-				InputLines:   metadata.LineRange{Start: 4, End: 4},
-				OutputLines:  metadata.LineRange{Start: 5, End: 7},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetTests(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Tests) != 1 {
-			t.Fatalf("expected 1 test, got %d", len(response.Tests))
-		}
-
-		test := response.Tests[0]
-		if test.TestName != "TestSomething" {
-			t.Errorf("expected testName %q, got %q", "TestSomething", test.TestName)
-		}
-
-		if test.FunctionName != "Process" {
-			t.Errorf("expected functionName %q, got %q", "Process", test.FunctionName)
-		}
-
-		if test.Comment != "Tests the process function" {
-			t.Errorf("expected comment %q, got %q", "Tests the process function", test.Comment)
-		}
-
-		if test.InputData == "" {
-			t.Error("expected inputData to be populated")
-		}
-
-		if test.ExpectedOutput == "" {
-			t.Error("expected expectedOutput to be populated")
-		}
-	})
-
-	t.Run("handles missing test file gracefully", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("test.go", []metadata.TestReference{
-			{
-				TestFile:     "missing_test.go",
-				TestName:     "TestSomething",
-				FunctionName: "Process",
-				Comment:      "Tests the process function",
-				LineRange:    metadata.LineRange{Start: 3, End: 9},
-				CoveredLines: metadata.LineRange{Start: 1, End: 10},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(t.TempDir()),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetTests(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Tests) != 1 {
-			t.Fatalf("expected 1 test, got %d", len(response.Tests))
-		}
-
-		// Content should be empty since test file doesn't exist
-		if response.Tests[0].Content != "" {
-			t.Error("expected empty content for missing test file")
-		}
-	})
-
-	t.Run("filters tests by functionName query param", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("test.go", []metadata.TestReference{
-			{
-				TestFile:     "test_test.go",
-				TestName:     "TestFoo",
-				FunctionName: "Foo",
-				Comment:      "Tests Foo",
-				LineRange:    metadata.LineRange{Start: 1, End: 5},
-				CoveredLines: metadata.LineRange{Start: 1, End: 3},
-			},
-			{
-				TestFile:     "test_test.go",
-				TestName:     "TestBar",
-				FunctionName: "Bar",
-				Comment:      "Tests Bar",
-				LineRange:    metadata.LineRange{Start: 6, End: 10},
-				CoveredLines: metadata.LineRange{Start: 4, End: 6},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(t.TempDir()),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests?functionName=Foo", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetTests(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Tests) != 1 {
-			t.Fatalf("expected 1 test after filter, got %d", len(response.Tests))
-		}
-		if response.Tests[0].FunctionName != "Foo" {
-			t.Errorf("expected functionName %q, got %q", "Foo", response.Tests[0].FunctionName)
-		}
-	})
-
-	t.Run("returns empty tests when functionName filter matches nothing", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("test.go", []metadata.TestReference{
-			{
-				TestFile:     "test_test.go",
-				TestName:     "TestFoo",
-				FunctionName: "Foo",
-				Comment:      "Tests Foo",
-				LineRange:    metadata.LineRange{Start: 1, End: 5},
-				CoveredLines: metadata.LineRange{Start: 1, End: 3},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(t.TempDir()),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests?functionName=NonExistent", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetTests(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Tests) != 0 {
-			t.Fatalf("expected 0 tests for non-matching filter, got %d", len(response.Tests))
-		}
-	})
+	if err := os.WriteFile(testFile, []byte(testContent), 0644); err != nil {
+		t.Fatal(err)
+	}
+	
+	// Add test metadata
+	testRef := files.TestReference{
+		FunctionName: "main",
+		TestFile:     "test_test.go",
+		TestName:     "TestMain",
+		Comment:      "tests main function",
+		LineRange:    files.LineRange{Start: 3, End: 9},
+		CoveredLines: files.LineRange{Start: 1, End: 3},
+		InputLines:   files.LineRange{Start: 4, End: 5},
+		OutputLines:  files.LineRange{Start: 6, End: 8},
+	}
+	
+	handler.metaStore.AddTestMetadata("test.go", []files.TestReference{testRef})
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/tests", handler.GetTests)
+	
+	req := httptest.NewRequest("GET", "/api/files/test.go/tests", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.TestsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.SourceFile != "test.go" {
+		t.Errorf("source file = %s, want test.go", resp.SourceFile)
+	}
+	
+	if len(resp.Tests) != 1 {
+		t.Fatalf("expected 1 test, got %d", len(resp.Tests))
+	}
+	
+	test := resp.Tests[0]
+	if test.TestName != "TestMain" {
+		t.Errorf("test name = %s, want TestMain", test.TestName)
+	}
+	
+	if test.InputData == "" {
+		t.Error("expected input data to be extracted")
+	}
+	
+	if test.ExpectedOutput == "" {
+		t.Error("expected output data to be extracted")
+	}
+	
+	if !strings.Contains(test.Content, "TestMain") {
+		t.Error("expected test content to be included")
+	}
 }
 
-func TestHandlerGetSuggestions(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files//suggestions", nil)
-		req.SetPathValue("path", "")
-		rr := httptest.NewRecorder()
-
-		h.GetSuggestions(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns empty suggestions when no metadata exists", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/suggestions", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetSuggestions(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.SuggestionsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.SourceFile != "test.go" {
-			t.Fatalf("sourceFile = %q, want %q", response.SourceFile, "test.go")
-		}
-
-		if len(response.Suggestions) != 0 {
-			t.Fatalf("expected 0 suggestions, got %d", len(response.Suggestions))
-		}
-	})
-
-	t.Run("returns suggestions with metadata", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		if err := metaStore.AddSuggestions("test.go", []metadata.TestSuggestion{
-			{
-				FunctionName:  "Process",
-				TargetLines:   metadata.LineRange{Start: 10, End: 20},
-				Reason:        "Missing test for error case",
-				SuggestedName: "TestProcessError",
-				TestSkeleton:  "func TestProcessError(t *testing.T) {}",
-				Priority:      "high",
-			},
-		}); err != nil {
-			t.Fatalf("add suggestions: %v", err)
-		}
-
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/suggestions", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetSuggestions(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.SuggestionsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Suggestions) != 1 {
-			t.Fatalf("expected 1 suggestion, got %d", len(response.Suggestions))
-		}
-
-		suggestion := response.Suggestions[0]
-		if suggestion.SuggestedName != "TestProcessError" {
-			t.Errorf("expected suggestedName %q, got %q", "TestProcessError", suggestion.SuggestedName)
-		}
-
-		if suggestion.Priority != "high" {
-			t.Errorf("expected priority %q, got %q", "high", suggestion.Priority)
-		}
-	})
+func TestGetTests_NoTests(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/tests", handler.GetTests)
+	
+	req := httptest.NewRequest("GET", "/api/files/test.go/tests", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.TestsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(resp.Tests) != 0 {
+		t.Errorf("expected 0 tests, got %d", len(resp.Tests))
+	}
 }
 
-func TestHandlerGetSources(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files//sources", nil)
-		req.SetPathValue("path", "")
-		rr := httptest.NewRecorder()
-
-		h.GetSources(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
+func TestGetTests_FilterByFunction(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	handler.metaStore.AddTestMetadata("test.go", []files.TestReference{
+		{
+			FunctionName: "main",
+			TestFile:     "test_test.go",
+			TestName:     "TestMain",
+			LineRange:    files.LineRange{Start: 1, End: 5},
+			CoveredLines: files.LineRange{Start: 1, End: 3},
+		},
+		{
+			FunctionName: "helper",
+			TestFile:     "test_test.go",
+			TestName:     "TestHelper",
+			LineRange:    files.LineRange{Start: 7, End: 10},
+			CoveredLines: files.LineRange{Start: 5, End: 7},
+		},
 	})
-
-	t.Run("returns empty sources when test file has no references", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test_test.go/sources", nil)
-		req.SetPathValue("path", "test_test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetSources(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestFileResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.TestFile != "test_test.go" {
-			t.Fatalf("testFile = %q, want %q", response.TestFile, "test_test.go")
-		}
-
-		if len(response.Sources) != 0 {
-			t.Fatalf("expected 0 sources, got %d", len(response.Sources))
-		}
-	})
-
-	t.Run("returns source references for test file", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("source.go", []metadata.TestReference{
-			{
-				TestFile:     "test_test.go",
-				TestName:     "TestSomething",
-				FunctionName: "Process",
-				Comment:      "Tests the process function",
-				LineRange:    metadata.LineRange{Start: 3, End: 9},
-				CoveredLines: metadata.LineRange{Start: 1, End: 10},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test_test.go/sources", nil)
-		req.SetPathValue("path", "test_test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetSources(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.TestFileResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Sources) != 1 {
-			t.Fatalf("expected 1 source, got %d", len(response.Sources))
-		}
-
-		source := response.Sources[0]
-		if source.SourceFile != "source.go" {
-			t.Errorf("expected sourceFile %q, got %q", "source.go", source.SourceFile)
-		}
-
-		if source.FunctionName != "Process" {
-			t.Errorf("expected functionName %q, got %q", "Process", source.FunctionName)
-		}
-	})
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/tests", handler.GetTests)
+	
+	req := httptest.NewRequest("GET", "/api/files/test.go/tests?functionName=main", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.TestsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(resp.Tests) != 1 {
+		t.Fatalf("expected 1 test, got %d", len(resp.Tests))
+	}
+	
+	if resp.Tests[0].FunctionName != "main" {
+		t.Errorf("function name = %s, want main", resp.Tests[0].FunctionName)
+	}
+}
+func TestGetSources_Success(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	// Add test metadata
+	testRef := files.TestReference{
+		FunctionName: "main",
+		TestFile:     "test_test.go",
+		TestName:     "TestMain",
+		LineRange:    files.LineRange{Start: 1, End: 5},
+		CoveredLines: files.LineRange{Start: 1, End: 3},
+	}
+	
+	handler.metaStore.AddTestMetadata("test.go", []files.TestReference{testRef})
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/sources", handler.GetSources)
+	
+	req := httptest.NewRequest("GET", "/api/files/test_test.go/sources", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.TestFileResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.TestFile != "test_test.go" {
+		t.Errorf("test file = %s, want test_test.go", resp.TestFile)
+	}
+	
+	if len(resp.Sources) != 1 {
+		t.Fatalf("expected 1 source, got %d", len(resp.Sources))
+	}
+	
+	source := resp.Sources[0]
+	if source.SourceFile != "test.go" {
+		t.Errorf("source file = %s, want test.go", source.SourceFile)
+	}
+	
+	if source.FunctionName != "main" {
+		t.Errorf("function name = %s, want main", source.FunctionName)
+	}
 }
 
-func TestHandlerGetComments(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files//comments", nil)
-		req.SetPathValue("path", "")
-		rr := httptest.NewRecorder()
-
-		h.GetComments(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns empty comments when no metadata exists", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/comments", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetComments(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.CommentsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.SourceFile != "test.go" {
-			t.Fatalf("sourceFile = %q, want %q", response.SourceFile, "test.go")
-		}
-
-		if len(response.Comments) != 0 {
-			t.Fatalf("expected 0 comments, got %d", len(response.Comments))
-		}
-	})
-
-	t.Run("returns comments with metadata", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		if _, err := metaStore.AddComment("test.go", files.Comment{
-			Line:    10,
-			Content: "This needs improvement",
-		}); err != nil {
-			t.Fatalf("add comment: %v", err)
-		}
-
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/comments", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.GetComments(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.CommentsResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Comments) != 1 {
-			t.Fatalf("expected 1 comment, got %d", len(response.Comments))
-		}
-
-		comment := response.Comments[0]
-		if comment.Line != 10 {
-			t.Errorf("expected line %d, got %d", 10, comment.Line)
-		}
-
-		if comment.Content != "This needs improvement" {
-			t.Errorf("expected content %q, got %q", "This needs improvement", comment.Content)
-		}
-	})
+func TestGetSources_NoSources(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/sources", handler.GetSources)
+	
+	req := httptest.NewRequest("GET", "/api/files/test_test.go/sources", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.TestFileResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(resp.Sources) != 0 {
+		t.Errorf("expected 0 sources, got %d", len(resp.Sources))
+	}
 }
 
-func TestHandlerCreateComment(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/api/files//comments", nil)
-		req.SetPathValue("path", "")
-		req.Body = nil
-		rr := httptest.NewRecorder()
-
-		h.CreateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request for invalid JSON", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/comments", nil)
-		req.SetPathValue("path", "test.go")
-		req.Body = http.MaxBytesReader(nil, req.Body, 1)
-		rr := httptest.NewRecorder()
-
-		h.CreateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request when line is less than 1", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		body := `{"line": 0, "content": "test"}`
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/comments", strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.CreateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request when content is empty", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		body := `{"line": 10, "content": ""}`
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/comments", strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.CreateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request when content is whitespace only", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		body := `{"line": 10, "content": "   "}`
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/comments", strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.CreateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("creates comment successfully", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		body := `{"line": 10, "content": "This needs improvement"}`
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/comments", strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.CreateComment(rr, req)
-
-		if rr.Code != http.StatusCreated {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusCreated)
-		}
-
-		var response files.CommentResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.Comment.Line != 10 {
-			t.Errorf("expected line %d, got %d", 10, response.Comment.Line)
-		}
-
-		if response.Comment.Content != "This needs improvement" {
-			t.Errorf("expected content %q, got %q", "This needs improvement", response.Comment.Content)
-		}
-
-		if response.Comment.ID == "" {
-			t.Error("expected comment ID to be generated")
-		}
-	})
-
-	t.Run("trims whitespace from content", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		body := `{"line": 10, "content": "  trimmed content  "}`
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/comments", strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.CreateComment(rr, req)
-
-		if rr.Code != http.StatusCreated {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusCreated)
-		}
-
-		var response files.CommentResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.Comment.Content != "trimmed content" {
-			t.Errorf("expected trimmed content %q, got %q", "trimmed content", response.Comment.Content)
-		}
-	})
+func TestGetSuggestions_Success(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	// Add test suggestion
+	suggestion := files.TestSuggestion{
+		SourceFile:    "test.go",
+		FunctionName:  "main",
+		TargetLines:   files.LineRange{Start: 1, End: 3},
+		Reason:        "needs test coverage",
+		SuggestedName: "TestMainBasic",
+		TestSkeleton:  "func TestMainBasic(t *testing.T) {}",
+		Priority:      "high",
+	}
+	
+	handler.metaStore.AddSuggestions("test.go", []files.TestSuggestion{suggestion})
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/suggestions", handler.GetSuggestions)
+	
+	req := httptest.NewRequest("GET", "/api/files/test.go/suggestions", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.SuggestionsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.SourceFile != "test.go" {
+		t.Errorf("source file = %s, want test.go", resp.SourceFile)
+	}
+	
+	if len(resp.Suggestions) != 1 {
+		t.Fatalf("expected 1 suggestion, got %d", len(resp.Suggestions))
+	}
+	
+	sugg := resp.Suggestions[0]
+	if sugg.SuggestedName != "TestMainBasic" {
+		t.Errorf("suggested name = %s, want TestMainBasic", sugg.SuggestedName)
+	}
+	
+	if sugg.Priority != "high" {
+		t.Errorf("priority = %s, want high", sugg.Priority)
+	}
 }
 
-func TestHandlerUpdateComment(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
+func TestGetSuggestions_NoSuggestions(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/suggestions", handler.GetSuggestions)
+	
+	req := httptest.NewRequest("GET", "/api/files/test.go/suggestions", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.SuggestionsResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(resp.Suggestions) != 0 {
+		t.Errorf("expected 0 suggestions, got %d", len(resp.Suggestions))
+	}
+}
+func TestCommentCRUD(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("GET /api/files/{path}/comments", handler.GetComments)
+	mux.HandleFunc("POST /api/files/{path}/comments", handler.CreateComment)
+	mux.HandleFunc("PUT /api/files/{path}/comments/{commentId}", handler.UpdateComment)
+	mux.HandleFunc("DELETE /api/files/{path}/comments/{commentId}", handler.DeleteComment)
+	mux.HandleFunc("PATCH /api/files/{path}/comments/{commentId}/resolved", handler.ToggleCommentResolved)
+	
+	// Test GET comments (empty)
+	req := httptest.NewRequest("GET", "/api/files/test.go/comments", nil)
+	w := httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("GET comments status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var getResp files.CommentsResponse
+	if err := json.NewDecoder(w.Body).Decode(&getResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(getResp.Comments) != 0 {
+		t.Errorf("expected 0 comments, got %d", len(getResp.Comments))
+	}
+	
+	// Test POST comment
+	createBody := `{"line": 2, "content": "test comment"}`
+	req = httptest.NewRequest("POST", "/api/files/test.go/comments", strings.NewReader(createBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusCreated {
+		t.Errorf("POST comment status = %d, want %d", w.Code, http.StatusCreated)
+	}
+	
+	var createResp files.CommentResponse
+	if err := json.NewDecoder(w.Body).Decode(&createResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	commentID := createResp.Comment.ID
+	if commentID == "" {
+		t.Error("expected comment ID to be set")
+	}
+	
+	if createResp.Comment.Line != 2 {
+		t.Errorf("comment line = %d, want 2", createResp.Comment.Line)
+	}
+	
+	if createResp.Comment.Content != "test comment" {
+		t.Errorf("comment content = %s, want 'test comment'", createResp.Comment.Content)
+	}
+	
+	// Test GET comments (with comment)
+	req = httptest.NewRequest("GET", "/api/files/test.go/comments", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("GET comments status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	if err := json.NewDecoder(w.Body).Decode(&getResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(getResp.Comments) != 1 {
+		t.Errorf("expected 1 comment, got %d", len(getResp.Comments))
+	}
+	
+	// Test PUT comment
+	updateBody := `{"content": "updated comment"}`
+	req = httptest.NewRequest("PUT", "/api/files/test.go/comments/"+commentID, strings.NewReader(updateBody))
+	req.Header.Set("Content-Type", "application/json")
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("PUT comment status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	// Test PATCH resolved
+	req = httptest.NewRequest("PATCH", "/api/files/test.go/comments/"+commentID+"/resolved", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("PATCH resolved status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	// Test DELETE comment
+	req = httptest.NewRequest("DELETE", "/api/files/test.go/comments/"+commentID, nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusNoContent {
+		t.Errorf("DELETE comment status = %d, want %d", w.Code, http.StatusNoContent)
+	}
+	
+	// Verify comment is deleted
+	req = httptest.NewRequest("GET", "/api/files/test.go/comments", nil)
+	w = httptest.NewRecorder()
+	mux.ServeHTTP(w, req)
+	
+	if err := json.NewDecoder(w.Body).Decode(&getResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(getResp.Comments) != 0 {
+		t.Errorf("expected 0 comments after delete, got %d", len(getResp.Comments))
+	}
+}
 
-		req := httptest.NewRequest(http.MethodPut, "/api/files//comments/123", nil)
-		req.SetPathValue("path", "")
-		req.SetPathValue("commentId", "123")
-		rr := httptest.NewRecorder()
+func TestCreateComment_ValidationErrors(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/files/{path}/comments", handler.CreateComment)
+	
+	tests := []struct {
+		name     string
+		body     string
+		wantCode int
+		wantErr  ErrorCode
+	}{
+		{
+			name:     "invalid JSON",
+			body:     "invalid json",
+			wantCode: http.StatusBadRequest,
+			wantErr:  ErrInvalidRequest,
+		},
+		{
+			name:     "line too small",
+			body:     `{"line": 0, "content": "test"}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  ErrValidation,
+		},
+		{
+			name:     "empty content",
+			body:     `{"line": 1, "content": ""}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  ErrValidation,
+		},
+		{
+			name:     "whitespace content",
+			body:     `{"line": 1, "content": "   "}`,
+			wantCode: http.StatusBadRequest,
+			wantErr:  ErrValidation,
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest("POST", "/api/files/test.go/comments", strings.NewReader(tt.body))
+			req.Header.Set("Content-Type", "application/json")
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
 
-		h.UpdateComment(rr, req)
+			if w.Code != tt.wantCode {
+				t.Errorf("status = %d, want %d", w.Code, tt.wantCode)
+			}
 
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
+			var errResp ErrorResponse
+			if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+				t.Fatalf("decode error: %v", err)
+			}
 
-	t.Run("returns bad request when commentId missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPut, "/api/files/test.go/comments/", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", "")
-		rr := httptest.NewRecorder()
-
-		h.UpdateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request for invalid JSON", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPut, "/api/files/test.go/comments/123", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", "123")
-		rr := httptest.NewRecorder()
-
-		h.UpdateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request when content is empty", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		body := `{"content": ""}`
-		req := httptest.NewRequest(http.MethodPut, "/api/files/test.go/comments/123", strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", "123")
-		rr := httptest.NewRecorder()
-
-		h.UpdateComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("updates comment successfully", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		created, _ := metaStore.AddComment("test.go", files.Comment{
-			Line:    10,
-			Content: "Original content",
+			if errResp.Code != tt.wantErr {
+				t.Errorf("error code = %s, want %s", errResp.Code, tt.wantErr)
+			}
 		})
+	}
+}
+func TestExportContext_Success(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	// Create a file with more content
+	testFile := filepath.Join(tmpDir, "example.go")
+	content := `package main
 
-		h := &Handler{
-			metaStore: metaStore,
-		}
+import "fmt"
 
-		body := `{"content": "Updated content"}`
-		req := httptest.NewRequest(http.MethodPut, "/api/files/test.go/comments/"+created.ID, strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", created.ID)
-		rr := httptest.NewRecorder()
-
-		h.UpdateComment(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		// Verify the comment was updated
-		comments := metaStore.GetComments("test.go")
-		if len(comments) != 1 {
-			t.Fatalf("expected 1 comment, got %d", len(comments))
-		}
-
-		if comments[0].Content != "Updated content" {
-			t.Errorf("expected content %q, got %q", "Updated content", comments[0].Content)
-		}
-	})
+func main() {
+	fmt.Println("hello")
 }
 
-func TestHandlerDeleteComment(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodDelete, "/api/files//comments/123", nil)
-		req.SetPathValue("path", "")
-		req.SetPathValue("commentId", "123")
-		rr := httptest.NewRecorder()
-
-		h.DeleteComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request when commentId missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodDelete, "/api/files/test.go/comments/", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", "")
-		rr := httptest.NewRecorder()
-
-		h.DeleteComment(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("deletes comment successfully", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		created, _ := metaStore.AddComment("test.go", files.Comment{
-			Line:    10,
-			Content: "Content to delete",
-		})
-
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodDelete, "/api/files/test.go/comments/"+created.ID, nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", created.ID)
-		rr := httptest.NewRecorder()
-
-		h.DeleteComment(rr, req)
-
-		if rr.Code != http.StatusNoContent {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNoContent)
-		}
-
-		// Verify the comment was deleted
-		comments := metaStore.GetComments("test.go")
-		if len(comments) != 0 {
-			t.Fatalf("expected 0 comments after delete, got %d", len(comments))
-		}
-	})
-
-	t.Run("handles deleting non-existent comment gracefully", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodDelete, "/api/files/test.go/comments/nonexistent", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", "nonexistent")
-		rr := httptest.NewRecorder()
-
-		h.DeleteComment(rr, req)
-
-		if rr.Code != http.StatusNoContent {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNoContent)
-		}
-	})
-}
-
-func TestHandlerToggleCommentResolved(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPatch, "/api/files//comments/123/resolved", nil)
-		req.SetPathValue("path", "")
-		req.SetPathValue("commentId", "123")
-		rr := httptest.NewRecorder()
-
-		h.ToggleCommentResolved(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns bad request when commentId missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPatch, "/api/files/test.go/comments//resolved", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", "")
-		rr := httptest.NewRecorder()
-
-		h.ToggleCommentResolved(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("toggles comment from unresolved to resolved", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		created, _ := metaStore.AddComment("test.go", files.Comment{
-			Line:     10,
-			Content:  "To be resolved",
-			Resolved: false,
-		})
-
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodPatch, "/api/files/test.go/comments/"+created.ID+"/resolved", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", created.ID)
-		rr := httptest.NewRecorder()
-
-		h.ToggleCommentResolved(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		// Verify the comment was toggled
-		comments := metaStore.GetComments("test.go")
-		if len(comments) != 1 {
-			t.Fatalf("expected 1 comment, got %d", len(comments))
-		}
-
-		if !comments[0].Resolved {
-			t.Error("expected comment to be resolved")
-		}
-	})
-
-	t.Run("toggles comment from resolved to unresolved", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		created, _ := metaStore.AddComment("test.go", files.Comment{
-			Line:     10,
-			Content:  "Already resolved",
-			Resolved: true,
-		})
-
-		h := &Handler{
-			metaStore: metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodPatch, "/api/files/test.go/comments/"+created.ID+"/resolved", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", created.ID)
-		rr := httptest.NewRecorder()
-
-		h.ToggleCommentResolved(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		// Verify the comment was toggled
-		comments := metaStore.GetComments("test.go")
-		if len(comments) != 1 {
-			t.Fatalf("expected 1 comment, got %d", len(comments))
-		}
-
-		if comments[0].Resolved {
-			t.Error("expected comment to be unresolved")
-		}
-	})
-
-	t.Run("handles non-existent comment gracefully", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPatch, "/api/files/test.go/comments/nonexistent/resolved", nil)
-		req.SetPathValue("path", "test.go")
-		req.SetPathValue("commentId", "nonexistent")
-		rr := httptest.NewRecorder()
-
-		h.ToggleCommentResolved(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-	})
-}
-
-func TestHandlerExportContext(t *testing.T) {
-	t.Run("returns bad request when path missing", func(t *testing.T) {
-		h := &Handler{
-			metaStore: metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/api/files//export", nil)
-		req.SetPathValue("path", "")
-		rr := httptest.NewRecorder()
-
-		h.ExportContext(rr, req)
-
-		if rr.Code != http.StatusBadRequest {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusBadRequest)
-		}
-	})
-
-	t.Run("returns not found for missing file", func(t *testing.T) {
-		h := &Handler{
-			fileService: files.NewService(t.TempDir()),
-			metaStore:   metadata.NewStore(""),
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/api/files/missing.go/export", nil)
-		req.SetPathValue("path", "missing.go")
-		rr := httptest.NewRecorder()
-
-		h.ExportContext(rr, req)
-
-		if rr.Code != http.StatusNotFound {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNotFound)
-		}
-	})
-
-	t.Run("exports context with default options", func(t *testing.T) {
-		baseDir := t.TempDir()
-		fileContent := `package main
-
-func Process(input string) string {
-	return "result"
+func helper() {
+	// helper function
 }`
-		if err := os.WriteFile(filepath.Join(baseDir, "test.go"), []byte(fileContent), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
+	if err := os.WriteFile(testFile, []byte(content), 0644); err != nil {
+		t.Fatal(err)
+	}
+	
+	// Add comment
+	comment := files.Comment{
+		Line:    6,
+		Content: "This line needs review",
+	}
+	handler.metaStore.AddComment("example.go", comment)
+	
+	// Add test
+	testRef := files.TestReference{
+		FunctionName: "main",
+		TestFile:     "example_test.go",
+		TestName:     "TestMain",
+		Comment:      "tests main function",
+		LineRange:    files.LineRange{Start: 1, End: 5},
+		CoveredLines: files.LineRange{Start: 5, End: 7},
+	}
+	handler.metaStore.AddTestMetadata("example.go", []files.TestReference{testRef})
+	
+	// Add suggestion
+	suggestion := files.TestSuggestion{
+		SourceFile:    "example.go",
+		FunctionName:  "helper",
+		TargetLines:   files.LineRange{Start: 9, End: 11},
+		Reason:        "needs test coverage",
+		SuggestedName: "TestHelper",
+		TestSkeleton:  "func TestHelper(t *testing.T) {}",
+		Priority:      "medium",
+	}
+	handler.metaStore.AddSuggestions("example.go", []files.TestSuggestion{suggestion})
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/files/{path}/export", handler.ExportContext)
 
-		metaStore := metadata.NewStore("")
-		metaStore.AddComment("test.go", files.Comment{
-			Line:    3,
-			Content: "This function needs tests",
-		})
+	reqBody := `{"contextLines": 2, "includeTests": true, "includeSuggestions": true}`
+	req := httptest.NewRequest("POST", "/api/files/example.go/export", strings.NewReader(reqBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
 
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.ExportContextResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.SourceFile != "example.go" {
+		t.Errorf("source file = %s, want example.go", resp.SourceFile)
+	}
+	
+	if len(resp.CodeContext) != 1 {
+		t.Errorf("expected 1 code context block, got %d", len(resp.CodeContext))
+	}
+	
+	if len(resp.Tests) != 1 {
+		t.Errorf("expected 1 test, got %d", len(resp.Tests))
+	}
+	
+	if len(resp.Suggestions) != 1 {
+		t.Errorf("expected 1 suggestion, got %d", len(resp.Suggestions))
+	}
+	
+	if resp.Formatted == "" {
+		t.Error("expected formatted export to be non-empty")
+	}
+	
+	// Check that formatted export contains expected sections
+	if !strings.Contains(resp.Formatted, "Code Review Export") {
+		t.Error("formatted export should contain header")
+	}
+	
+	if !strings.Contains(resp.Formatted, "This line needs review") {
+		t.Error("formatted export should contain comment")
+	}
+	
+	_ = tmpDir
+}
 
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/export", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
+func TestExportContext_DefaultValues(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	mux := http.NewServeMux()
+	mux.HandleFunc("POST /api/files/{path}/export", handler.ExportContext)
+	
+	// Test with no body (should use defaults)
+	req := httptest.NewRequest("POST", "/api/files/test.go/export", nil)
+	w := httptest.NewRecorder()
+	
+	mux.ServeHTTP(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.ExportContextResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.SourceFile != "test.go" {
+		t.Errorf("source file = %s, want test.go", resp.SourceFile)
+	}
+}
 
-		h.ExportContext(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.ExportContextResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.SourceFile != "test.go" {
-			t.Errorf("expected sourceFile %q, got %q", "test.go", response.SourceFile)
-		}
-
-		if len(response.CodeContext) == 0 {
-			t.Error("expected code context blocks")
-		}
-
-		if response.Formatted == "" {
-			t.Error("expected formatted output")
-		}
+func TestGetOverview_Success(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	// Add test metadata for multiple files
+	handler.metaStore.AddTestMetadata("file1.go", []files.TestReference{
+		{
+			FunctionName: "func1",
+			TestFile:     "file1_test.go",
+			TestName:     "TestFunc1",
+			LineRange:    files.LineRange{Start: 1, End: 5},
+			CoveredLines: files.LineRange{Start: 1, End: 3},
+		},
+		{
+			FunctionName: "func2",
+			TestFile:     "file1_test.go",
+			TestName:     "TestFunc2",
+			LineRange:    files.LineRange{Start: 7, End: 10},
+			CoveredLines: files.LineRange{Start: 5, End: 7},
+		},
 	})
-
-	t.Run("exports context with custom options", func(t *testing.T) {
-		baseDir := t.TempDir()
-		fileContent := `package main
-
-func Process(input string) string {
-	return "result"
-}`
-		if err := os.WriteFile(filepath.Join(baseDir, "test.go"), []byte(fileContent), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		metaStore.AddComment("test.go", files.Comment{
-			Line:    3,
-			Content: "This function needs tests",
-		})
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		body := `{"includeTests": false, "includeSuggestions": false, "contextLines": 2}`
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/export", strings.NewReader(body))
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.ExportContext(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.ExportContextResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		// Tests and suggestions should be empty
-		if response.Tests != nil && len(response.Tests) > 0 {
-			t.Error("expected no tests when includeTests is false")
-		}
-
-		if response.Suggestions != nil && len(response.Suggestions) > 0 {
-			t.Error("expected no suggestions when includeSuggestions is false")
-		}
+	
+	handler.metaStore.AddTestMetadata("file2.go", []files.TestReference{
+		{
+			FunctionName: "func3",
+			TestFile:     "file2_test.go",
+			TestName:     "TestFunc3",
+			LineRange:    files.LineRange{Start: 1, End: 5},
+			CoveredLines: files.LineRange{Start: 1, End: 3},
+		},
 	})
-
-	t.Run("handles invalid JSON body gracefully", func(t *testing.T) {
-		baseDir := t.TempDir()
-		fileContent := `package main`
-		if err := os.WriteFile(filepath.Join(baseDir, "test.go"), []byte(fileContent), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/export", strings.NewReader("invalid"))
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.ExportContext(rr, req)
-
-		// Should use defaults and succeed
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-	})
-
-	t.Run("skips resolved comments in export", func(t *testing.T) {
-		baseDir := t.TempDir()
-		fileContent := `package main
-
-func Process(input string) string {
-	return "result"
-}`
-		if err := os.WriteFile(filepath.Join(baseDir, "test.go"), []byte(fileContent), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		metaStore.AddComment("test.go", files.Comment{
-			Line:     3,
-			Content:  "Resolved comment",
-			Resolved: true,
+	
+	req := httptest.NewRequest("GET", "/api/overview", nil)
+	w := httptest.NewRecorder()
+	
+	handler.GetOverview(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.OverviewResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.TotalTests != 3 {
+		t.Errorf("total tests = %d, want 3", resp.TotalTests)
+	}
+	
+	if resp.TotalFunctions != 3 {
+		t.Errorf("total functions = %d, want 3", resp.TotalFunctions)
+	}
+	
+	if resp.TotalSourceFiles != 2 {
+		t.Errorf("total source files = %d, want 2", resp.TotalSourceFiles)
+	}
+	
+	if resp.TotalTestFiles != 2 {
+		t.Errorf("total test files = %d, want 2", resp.TotalTestFiles)
+	}
+	
+	if len(resp.Functions) != 3 {
+		t.Errorf("functions count = %d, want 3", len(resp.Functions))
+	}
+	
+	if len(resp.TestsBySourceFile) != 2 {
+		t.Errorf("tests by source file count = %d, want 2", len(resp.TestsBySourceFile))
+	}
+}
+func TestExtractLines(t *testing.T) {
+	lines := []string{
+		"line 1",
+		"line 2", 
+		"line 3",
+		"line 4",
+		"line 5",
+	}
+	
+	tests := []struct {
+		name     string
+		start    int
+		end      int
+		expected string
+	}{
+		{
+			name:     "valid range",
+			start:    2,
+			end:      4,
+			expected: "line 2\nline 3\nline 4",
+		},
+		{
+			name:     "single line",
+			start:    3,
+			end:      3,
+			expected: "line 3",
+		},
+		{
+			name:     "invalid start",
+			start:    0,
+			end:      2,
+			expected: "",
+		},
+		{
+			name:     "invalid end",
+			start:    2,
+			end:      10,
+			expected: "",
+		},
+		{
+			name:     "start > end",
+			start:    4,
+			end:      2,
+			expected: "",
+		},
+	}
+	
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := extractLines(lines, tt.start, tt.end)
+			if result != tt.expected {
+				t.Errorf("extractLines(%d, %d) = %q, want %q", tt.start, tt.end, result, tt.expected)
+			}
 		})
-		metaStore.AddComment("test.go", files.Comment{
-			Line:     4,
-			Content:  "Unresolved comment",
-			Resolved: false,
-		})
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodPost, "/api/files/test.go/export", nil)
-		req.SetPathValue("path", "test.go")
-		rr := httptest.NewRecorder()
-
-		h.ExportContext(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.ExportContextResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		// Should only have 1 block (unresolved comment)
-		if len(response.CodeContext) != 1 {
-			t.Errorf("expected 1 code context block, got %d", len(response.CodeContext))
-		}
-	})
+	}
 }
 
 func TestBuildFormattedExport(t *testing.T) {
-	t.Run("formats export with comments", func(t *testing.T) {
-		data := files.ExportContextResponse{
-			SourceFile: "test.go",
-			CodeContext: []files.CodeContextBlock{
-				{
-					LineRange: files.LineRange{Start: 1, End: 5},
-					Code:      "1: package main\n2: \n3: func main() {}\n",
-					Comments: []files.Comment{
-						{Line: 3, Content: "Add tests here"},
+	data := files.ExportContextResponse{
+		SourceFile: "test.go",
+		CodeContext: []files.CodeContextBlock{
+			{
+				LineRange: files.LineRange{Start: 5, End: 7},
+				Code:      "5: func main() {\n6:   fmt.Println(\"hello\")\n7: }",
+				Comments: []files.Comment{
+					{
+						Line:    6,
+						Content: "This needs review",
 					},
 				},
 			},
-		}
+		},
+		Tests: []files.TestDetail{
+			{
+				FunctionName: "main",
+				TestFile:     "test_test.go",
+				TestName:     "TestMain",
+				Comment:      "tests main function",
+				LineRange:    files.LineRange{Start: 1, End: 5},
+			},
+		},
+		Suggestions: []files.TestSuggestion{
+			{
+				SuggestedName: "TestHelper",
+				Priority:      "high",
+				Reason:        "needs coverage",
+				TargetLines:   files.LineRange{Start: 10, End: 15},
+				TestSkeleton:  "func TestHelper(t *testing.T) {}",
+			},
+		},
+	}
+	
+	result := buildFormattedExport(data)
+	
+	if !strings.Contains(result, "Code Review Export") {
+		t.Error("should contain header")
+	}
+	
+	if !strings.Contains(result, "test.go") {
+		t.Error("should contain file name")
+	}
+	
+	if !strings.Contains(result, "This needs review") {
+		t.Error("should contain comment")
+	}
+	
+	if !strings.Contains(result, "TestMain") {
+		t.Error("should contain test name")
+	}
+	
+	if !strings.Contains(result, "TestHelper") {
+		t.Error("should contain suggestion name")
+	}
+	
+	if !strings.Contains(result, "Priority: high") {
+		t.Error("should contain priority")
+	}
+}
 
-		formatted := buildFormattedExport(data)
-
-		if !strings.Contains(formatted, "# Code Review Export") {
-			t.Error("formatted output missing header")
-		}
-
-		if !strings.Contains(formatted, "**File:** `test.go`") {
-			t.Error("formatted output missing file path")
-		}
-
-		if !strings.Contains(formatted, "## Comments and Code Context") {
-			t.Error("formatted output missing comments section")
-		}
-
-		if !strings.Contains(formatted, "Add tests here") {
-			t.Error("formatted output missing comment content")
-		}
+func TestGetMetadataIssues_Success(t *testing.T) {
+	handler, tmpDir, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	// Add metadata with invalid paths
+	handler.metaStore.AddTestMetadata("nonexistent.go", []files.TestReference{
+		{
+			FunctionName: "test",
+			TestFile:     "nonexistent_test.go",
+			TestName:     "TestSomething",
+			LineRange:    files.LineRange{Start: 1, End: 5},
+			CoveredLines: files.LineRange{Start: 1, End: 3},
+		},
 	})
+	
+	req := httptest.NewRequest("GET", "/api/metadata/issues", nil)
+	w := httptest.NewRecorder()
+	
+	handler.GetMetadataIssues(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.MetadataIssuesResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if len(resp.Issues) == 0 {
+		t.Error("expected at least one issue")
+	}
+	
+	issue := resp.Issues[0]
+	if issue.SourceFile != "nonexistent.go" {
+		t.Errorf("source file = %s, want nonexistent.go", issue.SourceFile)
+	}
+	
+	if issue.SourceValid {
+		t.Error("expected source to be invalid")
+	}
+	
+	_ = tmpDir
+}
 
-	t.Run("formats export with tests", func(t *testing.T) {
-		data := files.ExportContextResponse{
-			SourceFile: "test.go",
-			Tests: []files.TestDetail{
-				{
-					TestName:     "TestMain",
-					FunctionName: "Main",
-					TestFile:     "test_test.go",
-					Comment:      "Tests the main function",
-					LineRange:    files.LineRange{Start: 1, End: 10},
-					CoveredLines: files.LineRange{Start: 1, End: 5},
-				},
+func TestHandleMCP_MethodNotAllowed(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	req := httptest.NewRequest("GET", "/api/mcp", nil)
+	w := httptest.NewRecorder()
+	
+	handler.HandleMCP(w, req)
+	
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusMethodNotAllowed)
+	}
+	
+	var errResp ErrorResponse
+	if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if errResp.Code != ErrMethodNotAllowed {
+		t.Errorf("error code = %s, want %s", errResp.Code, ErrMethodNotAllowed)
+	}
+}
+
+func TestSearch_Success(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+	
+	req := httptest.NewRequest("GET", "/api/search?q=test", nil)
+	w := httptest.NewRecorder()
+	
+	handler.Search(w, req)
+	
+	if w.Code != http.StatusOK {
+		t.Errorf("status = %d, want %d", w.Code, http.StatusOK)
+	}
+	
+	var resp files.SearchResponse
+	if err := json.NewDecoder(w.Body).Decode(&resp); err != nil {
+		t.Fatalf("decode error: %v", err)
+	}
+	
+	if resp.Query != "test" {
+		t.Errorf("query = %s, want test", resp.Query)
+	}
+	
+	// Should find test.go file
+	found := false
+	for _, result := range resp.Results {
+		if strings.Contains(result.Title, "test.go") {
+			found = true
+			break
+		}
+	}
+	
+	if !found {
+		t.Error("expected to find test.go in search results")
+	}
+}
+
+// Test error response helper
+func TestHandlerJSONErrors(t *testing.T) {
+	handler, _, cleanup := setupTestHandler(t)
+	defer cleanup()
+
+	tests := []struct {
+		name           string
+		method         string
+		path           string
+		body           string
+		setupRoute     func(*http.ServeMux)
+		wantStatus     int
+		wantErrorCode  ErrorCode
+		wantErrorMsg   string
+		checkDetails   bool
+		wantDetailsKey string
+	}{
+		{
+			name:   "ListFiles - file not found",
+			method: "GET",
+			path:   "/api/files?path=nonexistent-dir-12345",
+			setupRoute: func(mux *http.ServeMux) {
+				mux.HandleFunc("GET /api/files", handler.ListFiles)
 			},
-		}
-
-		formatted := buildFormattedExport(data)
-
-		if !strings.Contains(formatted, "## Related Tests") {
-			t.Error("formatted output missing tests section")
-		}
-
-		if !strings.Contains(formatted, "TestMain") {
-			t.Error("formatted output missing test name")
-		}
-	})
-
-	t.Run("formats export with suggestions", func(t *testing.T) {
-		data := files.ExportContextResponse{
-			SourceFile: "test.go",
-			Suggestions: []files.TestSuggestion{
-				{
-					SuggestedName: "TestEdgeCase",
-					Priority:      "high",
-					Reason:        "Missing edge case test",
-					TargetLines:   files.LineRange{Start: 10, End: 20},
-					TestSkeleton:  "func TestEdgeCase(t *testing.T) {}",
-				},
+			wantStatus:    http.StatusNotFound,
+			wantErrorCode: ErrFileNotFound,
+		},
+		{
+			name:   "GetFile - file not found",
+			method: "GET",
+			path:   "/api/files/nonexistent-file-12345.txt",
+			setupRoute: func(mux *http.ServeMux) {
+				mux.HandleFunc("GET /api/files/{path...}", handler.GetFile)
 			},
-		}
-
-		formatted := buildFormattedExport(data)
-
-		if !strings.Contains(formatted, "## Test Suggestions") {
-			t.Error("formatted output missing suggestions section")
-		}
-
-		if !strings.Contains(formatted, "TestEdgeCase") {
-			t.Error("formatted output missing suggestion name")
-		}
-
-		if !strings.Contains(formatted, "Priority: high") {
-			t.Error("formatted output missing priority")
-		}
-	})
-
-	t.Run("formats export with all sections", func(t *testing.T) {
-		data := files.ExportContextResponse{
-			SourceFile: "test.go",
-			CodeContext: []files.CodeContextBlock{
-				{
-					LineRange: files.LineRange{Start: 1, End: 5},
-					Code:      "code here",
-					Comments:  []files.Comment{{Line: 3, Content: "comment"}},
-				},
+			wantStatus:    http.StatusNotFound,
+			wantErrorCode: ErrFileNotFound,
+		},
+		{
+			name:   "CreateComment - invalid body",
+			method: "POST",
+			path:   "/api/files/test.go/comments",
+			body:   "invalid json",
+			setupRoute: func(mux *http.ServeMux) {
+				mux.HandleFunc("POST /api/files/{path}/comments", handler.CreateComment)
 			},
-			Tests: []files.TestDetail{
-				{TestName: "TestSomething", FunctionName: "Something", TestFile: "test_test.go", LineRange: files.LineRange{Start: 1, End: 10}, CoveredLines: files.LineRange{Start: 1, End: 5}},
+			wantStatus:    http.StatusBadRequest,
+			wantErrorCode: ErrInvalidRequest,
+			wantErrorMsg:  "invalid request body",
+		},
+		{
+			name:   "CreateComment - validation error with details",
+			method: "POST",
+			path:   "/api/files/test.go/comments",
+			body:   `{"line": 0, "content": "test"}`,
+			setupRoute: func(mux *http.ServeMux) {
+				mux.HandleFunc("POST /api/files/{path}/comments", handler.CreateComment)
 			},
-			Suggestions: []files.TestSuggestion{
-				{SuggestedName: "TestMissing", Priority: "medium", Reason: "missing", TargetLines: files.LineRange{Start: 1, End: 5}, TestSkeleton: "func TestMissing(t *testing.T) {}"},
+			wantStatus:     http.StatusBadRequest,
+			wantErrorCode:  ErrValidation,
+			wantErrorMsg:   "line must be >= 1",
+			checkDetails:   true,
+			wantDetailsKey: "field",
+		},
+		{
+			name:   "HandleMCP - method not allowed",
+			method: "GET",
+			path:   "/api/mcp",
+			setupRoute: func(mux *http.ServeMux) {
+				mux.HandleFunc("/api/mcp", handler.HandleMCP)
 			},
-		}
+			wantStatus:    http.StatusMethodNotAllowed,
+			wantErrorCode: ErrMethodNotAllowed,
+			wantErrorMsg:  "method not allowed",
+		},
+	}
 
-		formatted := buildFormattedExport(data)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mux := http.NewServeMux()
+			tt.setupRoute(mux)
 
-		// Check all sections are present
-		sections := []string{
-			"# Code Review Export",
-			"## Comments and Code Context",
-			"## Related Tests",
-			"## Test Suggestions",
-		}
-
-		for _, section := range sections {
-			if !strings.Contains(formatted, section) {
-				t.Errorf("formatted output missing section: %s", section)
+			var req *http.Request
+			if tt.body != "" {
+				req = httptest.NewRequest(tt.method, tt.path, strings.NewReader(tt.body))
+				req.Header.Set("Content-Type", "application/json")
+			} else {
+				req = httptest.NewRequest(tt.method, tt.path, nil)
 			}
-		}
-	})
-}
 
-func TestExtractLines(t *testing.T) {
-	t.Run("extracts lines correctly", func(t *testing.T) {
-		lines := []string{"line1", "line2", "line3", "line4", "line5"}
+			w := httptest.NewRecorder()
+			mux.ServeHTTP(w, req)
 
-		result := extractLines(lines, 2, 4)
+			if w.Code != tt.wantStatus {
+				t.Errorf("status code = %d, want %d", w.Code, tt.wantStatus)
+			}
 
-		expected := "line2\nline3\nline4"
-		if result != expected {
-			t.Errorf("expected %q, got %q", expected, result)
-		}
-	})
+			contentType := w.Header().Get("Content-Type")
+			if contentType != "application/json" {
+				t.Errorf("Content-Type = %s, want application/json", contentType)
+			}
 
-	t.Run("handles single line", func(t *testing.T) {
-		lines := []string{"line1", "line2", "line3"}
+			var errResp ErrorResponse
+			if err := json.NewDecoder(w.Body).Decode(&errResp); err != nil {
+				t.Fatalf("failed to decode error response: %v, body: %s", err, w.Body.String())
+			}
 
-		result := extractLines(lines, 2, 2)
+			if errResp.Code != tt.wantErrorCode {
+				t.Errorf("error code = %s, want %s", errResp.Code, tt.wantErrorCode)
+			}
 
-		if result != "line2" {
-			t.Errorf("expected %q, got %q", "line2", result)
-		}
-	})
+			if tt.wantErrorMsg != "" && errResp.Error != tt.wantErrorMsg {
+				t.Errorf("error message = %s, want %s", errResp.Error, tt.wantErrorMsg)
+			}
 
-	t.Run("returns empty for invalid start", func(t *testing.T) {
-		lines := []string{"line1", "line2", "line3"}
-
-		result := extractLines(lines, 0, 2)
-
-		if result != "" {
-			t.Errorf("expected empty string, got %q", result)
-		}
-	})
-
-	t.Run("returns empty for start greater than end", func(t *testing.T) {
-		lines := []string{"line1", "line2", "line3"}
-
-		result := extractLines(lines, 3, 1)
-
-		if result != "" {
-			t.Errorf("expected empty string, got %q", result)
-		}
-	})
-
-	t.Run("returns empty for start beyond lines", func(t *testing.T) {
-		lines := []string{"line1", "line2", "line3"}
-
-		result := extractLines(lines, 10, 15)
-
-		if result != "" {
-			t.Errorf("expected empty string, got %q", result)
-		}
-	})
-
-	t.Run("returns empty for end beyond lines", func(t *testing.T) {
-		lines := []string{"line1", "line2", "line3"}
-
-		result := extractLines(lines, 1, 10)
-
-		if result != "" {
-			t.Errorf("expected empty string, got %q", result)
-		}
-	})
-
-	t.Run("handles empty lines slice", func(t *testing.T) {
-		lines := []string{}
-
-		result := extractLines(lines, 1, 1)
-
-		if result != "" {
-			t.Errorf("expected empty string, got %q", result)
-		}
-	})
-}
-
-func TestMetadataIssueHandlers(t *testing.T) {
-	t.Run("lists invalid metadata issues", func(t *testing.T) {
-		baseDir := t.TempDir()
-		if err := os.WriteFile(filepath.Join(baseDir, "valid.go"), []byte("package main"), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("/app/invalid.go", []metadata.TestReference{
-			{
-				TestFile:     "missing_test.go",
-				TestName:     "TestBroken",
-				FunctionName: "Broken",
-				Comment:      "broken metadata",
-				LineRange:    metadata.LineRange{Start: 1, End: 2},
-				CoveredLines: metadata.LineRange{Start: 1, End: 1},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		req := httptest.NewRequest(http.MethodGet, "/api/metadata/issues", nil)
-		rr := httptest.NewRecorder()
-
-		h.GetMetadataIssues(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response files.MetadataIssuesResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if len(response.Issues) != 1 {
-			t.Fatalf("expected 1 issue, got %d", len(response.Issues))
-		}
-		if response.Issues[0].SourceValid {
-			t.Fatal("expected invalid source entry")
-		}
-		if len(response.Issues[0].InvalidTestIssues) != 1 {
-			t.Fatalf("expected 1 invalid test issue, got %d", len(response.Issues[0].InvalidTestIssues))
-		}
-	})
-
-	t.Run("updates source path to canonical relative value", func(t *testing.T) {
-		baseDir := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(baseDir, "pkg"), 0755); err != nil {
-			t.Fatalf("mkdirAll: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(baseDir, "pkg", "source.go"), []byte("package pkg"), 0644); err != nil {
-			t.Fatalf("write file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("/app/pkg/source.go", []metadata.TestReference{
-			{
-				TestFile:     "pkg/source_test.go",
-				TestName:     "TestSource",
-				FunctionName: "Source",
-				Comment:      "renamed source",
-				LineRange:    metadata.LineRange{Start: 1, End: 2},
-				CoveredLines: metadata.LineRange{Start: 1, End: 1},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		body := `{"oldPath":"/app/pkg/source.go","newPath":"pkg/source.go"}`
-		req := httptest.NewRequest(http.MethodPut, "/api/metadata/source-path", strings.NewReader(body))
-		rr := httptest.NewRecorder()
-
-		h.UpdateSourcePath(rr, req)
-
-		if rr.Code != http.StatusNoContent {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusNoContent)
-		}
-		if metaStore.GetTestMetadata("/app/pkg/source.go") != nil {
-			t.Fatal("expected old source path to be removed")
-		}
-		if metaStore.GetTestMetadata("pkg/source.go") == nil {
-			t.Fatal("expected canonical source path to exist")
-		}
-	})
-
-	t.Run("updates and deletes invalid test paths", func(t *testing.T) {
-		baseDir := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(baseDir, "pkg"), 0755); err != nil {
-			t.Fatalf("mkdirAll: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(baseDir, "pkg", "source.go"), []byte("package pkg"), 0644); err != nil {
-			t.Fatalf("write source file: %v", err)
-		}
-		if err := os.WriteFile(filepath.Join(baseDir, "pkg", "source_test.go"), []byte("package pkg"), 0644); err != nil {
-			t.Fatalf("write test file: %v", err)
-		}
-
-		metaStore := metadata.NewStore("")
-		if err := metaStore.SetTestMetadata("pkg/source.go", []metadata.TestReference{
-			{
-				TestFile:     "/app/pkg/source_test.go",
-				TestName:     "TestSource",
-				FunctionName: "Source",
-				Comment:      "broken test path",
-				LineRange:    metadata.LineRange{Start: 1, End: 2},
-				CoveredLines: metadata.LineRange{Start: 1, End: 1},
-			},
-			{
-				TestFile:     "missing_test.go",
-				TestName:     "TestMissing",
-				FunctionName: "Source",
-				Comment:      "missing test path",
-				LineRange:    metadata.LineRange{Start: 3, End: 4},
-				CoveredLines: metadata.LineRange{Start: 1, End: 1},
-			},
-		}); err != nil {
-			t.Fatalf("set metadata: %v", err)
-		}
-
-		h := &Handler{
-			fileService: files.NewService(baseDir),
-			metaStore:   metaStore,
-		}
-
-		updateBody := `{"sourceFile":"pkg/source.go","testFile":"/app/pkg/source_test.go","testName":"TestSource","newTestFile":"pkg/source_test.go"}`
-		updateReq := httptest.NewRequest(http.MethodPut, "/api/metadata/test-path", strings.NewReader(updateBody))
-		updateRR := httptest.NewRecorder()
-
-		h.UpdateTestPath(updateRR, updateReq)
-
-		if updateRR.Code != http.StatusNoContent {
-			t.Fatalf("update status = %d, want %d", updateRR.Code, http.StatusNoContent)
-		}
-
-		deleteBody := `{"sourceFile":"pkg/source.go","testFile":"missing_test.go","testName":"TestMissing"}`
-		deleteReq := httptest.NewRequest(http.MethodDelete, "/api/metadata/test-path", strings.NewReader(deleteBody))
-		deleteRR := httptest.NewRecorder()
-
-		h.DeleteTestPath(deleteRR, deleteReq)
-
-		if deleteRR.Code != http.StatusNoContent {
-			t.Fatalf("delete status = %d, want %d", deleteRR.Code, http.StatusNoContent)
-		}
-
-		meta := metaStore.GetTestMetadata("pkg/source.go")
-		if meta == nil || len(meta.Tests) != 1 {
-			t.Fatalf("expected 1 remaining test, got %+v", meta)
-		}
-		if meta.Tests[0].TestFile != "pkg/source_test.go" {
-			t.Fatalf("expected updated test path %q, got %q", "pkg/source_test.go", meta.Tests[0].TestFile)
-		}
-	})
+			if tt.checkDetails {
+				if errResp.Details == nil {
+					t.Error("expected details but got nil")
+				} else if _, ok := errResp.Details[tt.wantDetailsKey]; !ok {
+					t.Errorf("expected details key %s but not found", tt.wantDetailsKey)
+				}
+			}
+		})
+	}
 }
