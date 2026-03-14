@@ -25,7 +25,6 @@ export function useExport(): UseExportResult {
     try {
       const request: ExportContextRequest = {
         includeTests: true,
-        includeSuggestions: true,
         contextLines: 5,
         ...options,
       };

@@ -208,37 +208,6 @@ func (h *Handler) GetSources(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// GetSuggestions handles GET /api/files/{path}/suggestions
-func (h *Handler) GetSuggestions(w http.ResponseWriter, r *http.Request) {
-	path := r.PathValue("path")
-	if path == "" {
-		writeError(w, http.StatusBadRequest, ErrInvalidRequest, "path is required", nil)
-		return
-	}
-	canonicalPath, err := h.fileService.CanonicalizePath(path)
-	if err != nil {
-		writeError(w, http.StatusBadRequest, ErrInvalidPath, err.Error(), nil)
-		return
-	}
-
-	// Get suggestions for the file
-	suggestions := h.metaStore.GetSuggestions(canonicalPath)
-	if suggestions == nil {
-		suggestions = []files.TestSuggestion{}
-	}
-
-	response := files.SuggestionsResponse{
-		SourceFile:  canonicalPath,
-		Suggestions: suggestions,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		writeError(w, http.StatusInternalServerError, ErrEncodeFailed, "failed to encode response", nil)
-		return
-	}
-}
-
 // HandleMCP handles POST /api/mcp
 func (h *Handler) HandleMCP(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -437,7 +406,6 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 		// Use defaults if no body
 		req.ContextLines = 5
 		req.IncludeTests = true
-		req.IncludeSuggestions = true
 	}
 
 	if req.ContextLines < 1 {
@@ -526,11 +494,6 @@ func (h *Handler) ExportContext(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	// Include suggestions if requested
-	if req.IncludeSuggestions {
-		response.Suggestions = h.metaStore.GetSuggestions(canonicalPath)
-	}
-
 	// Build formatted string for easy copying
 	response.Formatted = buildFormattedExport(response)
 
@@ -564,7 +527,6 @@ func (h *Handler) GetMetadataIssues(w http.ResponseWriter, r *http.Request) {
 			SourceValid:       sourceValid,
 			SourceIsAbsolute:  sourceIsAbsolute,
 			SourceMessage:     sourceMessage,
-			SuggestionsCount:  len(meta.Suggestions),
 			CommentsCount:     len(meta.Comments),
 			InvalidTestIssues: []files.MetadataTestIssue{},
 		}
@@ -732,21 +694,6 @@ func buildFormattedExport(data files.ExportContextResponse) string {
 			b.WriteString(fmt.Sprintf("- **Lines:** %d-%d\n", test.LineRange.Start, test.LineRange.End))
 			if test.Comment != "" {
 				b.WriteString(fmt.Sprintf("- **Description:** %s\n", test.Comment))
-			}
-			b.WriteString("\n")
-		}
-	}
-
-	if len(data.Suggestions) > 0 {
-		b.WriteString("## Test Suggestions\n\n")
-		for _, sugg := range data.Suggestions {
-			b.WriteString(fmt.Sprintf("### %s (Priority: %s)\n", sugg.SuggestedName, sugg.Priority))
-			b.WriteString(fmt.Sprintf("- **Reason:** %s\n", sugg.Reason))
-			b.WriteString(fmt.Sprintf("- **Target Lines:** %d-%d\n", sugg.TargetLines.Start, sugg.TargetLines.End))
-			if sugg.TestSkeleton != "" {
-				b.WriteString("\n**Suggested Test Skeleton:**\n```\n")
-				b.WriteString(sugg.TestSkeleton)
-				b.WriteString("\n```\n")
 			}
 			b.WriteString("\n")
 		}

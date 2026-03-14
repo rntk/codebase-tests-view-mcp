@@ -49,7 +49,6 @@ describe('useExport', () => {
     expect(result.current.error).toBeNull();
     expect(mockExportContext).toHaveBeenCalledWith('src/App.tsx', {
       includeTests: true,
-      includeSuggestions: true,
       contextLines: 5,
     });
   });
@@ -59,7 +58,6 @@ describe('useExport', () => {
       sourceFile: 'src/utils.ts',
       codeContext: [],
       tests: [],
-      suggestions: [],
       formatted: 'formatted',
     };
 
@@ -70,14 +68,12 @@ describe('useExport', () => {
     await act(async () => {
       await result.current.performExport('src/utils.ts', {
         includeTests: false,
-        includeSuggestions: false,
         contextLines: 10,
       });
     });
 
     expect(mockExportContext).toHaveBeenCalledWith('src/utils.ts', {
       includeTests: false,
-      includeSuggestions: false,
       contextLines: 10,
     });
   });
@@ -155,7 +151,7 @@ describe('useExport', () => {
     expect(result.current.error).toBe('Failed to export context');
   });
 
-  it('should handle export with tests and suggestions', async () => {
+  it('should handle export with tests', async () => {
     const mockResponse: ExportContextResponse = {
       sourceFile: 'src/utils.ts',
       codeContext: [],
@@ -169,17 +165,7 @@ describe('useExport', () => {
           coveredLines: { start: 5, end: 10 },
         },
       ],
-      suggestions: [
-        {
-          sourceFile: 'src/utils.ts',
-          targetLines: { start: 15, end: 20 },
-          reason: 'Needs test',
-          suggestedName: 'should handle edge case',
-          testSkeleton: 'test("should handle edge case", () => {})',
-          priority: 'high',
-        },
-      ],
-      formatted: 'formatted with tests and suggestions',
+      formatted: 'formatted with tests',
     };
 
     mockExportContext.mockResolvedValue(mockResponse);
@@ -189,12 +175,10 @@ describe('useExport', () => {
     await act(async () => {
       await result.current.performExport('src/utils.ts', {
         includeTests: true,
-        includeSuggestions: true,
       });
     });
 
     expect(result.current.exportData?.tests).toHaveLength(1);
-    expect(result.current.exportData?.suggestions).toHaveLength(1);
   });
 
   it('should merge options with defaults', async () => {
@@ -212,7 +196,6 @@ describe('useExport', () => {
 
     expect(mockExportContext).toHaveBeenCalledWith('src/App.tsx', {
       includeTests: true,
-      includeSuggestions: true,
       contextLines: 20,
     });
   });

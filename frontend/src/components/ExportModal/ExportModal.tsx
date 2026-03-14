@@ -69,8 +69,7 @@ export const ExportModal: React.FC<ExportModalProps> = ({
             <>
               <div className="tip-box">
                 <strong>Tip:</strong> Copy this formatted context and paste it directly into your AI
-                coding assistant. It includes code context, comments, test information, and
-                suggestions.
+                coding assistant. It includes code context, comments, and test information.
               </div>
 
               <div className="code-block-dark">
@@ -113,11 +112,6 @@ export const ExportModal: React.FC<ExportModalProps> = ({
                 {exportData.tests && (
                   <span>
                     <strong>{exportData.tests.length}</strong> tests
-                  </span>
-                )}
-                {exportData.suggestions && (
-                  <span>
-                    <strong>{exportData.suggestions.length}</strong> suggestions
                   </span>
                 )}
               </div>

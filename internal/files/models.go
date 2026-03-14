@@ -38,9 +38,8 @@ type Comment struct {
 
 // FileMetadata contains test-related metadata for a file
 type FileMetadata struct {
-	Tests       []TestReference  `json:"tests,omitempty"`
-	Suggestions []TestSuggestion `json:"suggestions,omitempty"`
-	Comments    []Comment        `json:"comments,omitempty"`
+	Tests    []TestReference `json:"tests,omitempty"`
+	Comments []Comment       `json:"comments,omitempty"`
 }
 
 // TestReference links a source file to its tests
@@ -93,23 +92,6 @@ type TestsResponse struct {
 	Tests      []TestDetail `json:"tests"`
 }
 
-// TestSuggestion represents a suggested test for uncovered code
-type TestSuggestion struct {
-	SourceFile    string    `json:"sourceFile"`
-	FunctionName  string    `json:"functionName,omitempty"`
-	TargetLines   LineRange `json:"targetLines"`
-	Reason        string    `json:"reason"`
-	SuggestedName string    `json:"suggestedName"`
-	TestSkeleton  string    `json:"testSkeleton"`
-	Priority      string    `json:"priority"` // high, medium, low
-}
-
-// SuggestionsResponse for GET /api/files/{path}/suggestions
-type SuggestionsResponse struct {
-	SourceFile  string           `json:"sourceFile"`
-	Suggestions []TestSuggestion `json:"suggestions"`
-}
-
 // SourceReference represents a source function referenced by a test
 type SourceReference struct {
 	SourceFile   string    `json:"sourceFile"`
@@ -148,9 +130,8 @@ type CommentsResponse struct {
 
 // ExportContextRequest for exporting code with comments for AI agents
 type ExportContextRequest struct {
-	IncludeTests       bool `json:"includeTests"`
-	IncludeSuggestions bool `json:"includeSuggestions"`
-	ContextLines       int  `json:"contextLines"` // lines of context around commented lines
+	IncludeTests bool `json:"includeTests"`
+	ContextLines int  `json:"contextLines"` // lines of context around commented lines
 }
 
 // ExportContextResponse contains formatted data for AI agents
@@ -158,7 +139,6 @@ type ExportContextResponse struct {
 	SourceFile  string             `json:"sourceFile"`
 	CodeContext []CodeContextBlock `json:"codeContext"`
 	Tests       []TestDetail       `json:"tests,omitempty"`
-	Suggestions []TestSuggestion   `json:"suggestions,omitempty"`
 	Formatted   string             `json:"formatted"` // ready-to-copy format
 }
 
@@ -198,7 +178,6 @@ type MetadataIssue struct {
 	SourceValid       bool                `json:"sourceValid"`
 	SourceIsAbsolute  bool                `json:"sourceIsAbsolute"`
 	SourceMessage     string              `json:"sourceMessage,omitempty"`
-	SuggestionsCount  int                 `json:"suggestionsCount"`
 	CommentsCount     int                 `json:"commentsCount"`
 	InvalidTestIssues []MetadataTestIssue `json:"invalidTestIssues"`
 }
@@ -250,13 +229,13 @@ const (
 
 // SearchResult represents a single search result
 type SearchResult struct {
-	Type         SearchResultType `json:"type"`
-	Title        string           `json:"title"`        // Display title (file name, function name, or test name)
-	Subtitle     string           `json:"subtitle"`     // Additional context (path or parent function)
-	Path         string           `json:"path"`         // File path to navigate to
-	Line         int              `json:"line"`         // Line number to jump to (0 if not applicable)
-	Relevance    int              `json:"relevance"`    // Match quality score for sorting
-	MatchedText  string           `json:"matchedText"`  // The text that matched the query
+	Type        SearchResultType `json:"type"`
+	Title       string           `json:"title"`       // Display title (file name, function name, or test name)
+	Subtitle    string           `json:"subtitle"`    // Additional context (path or parent function)
+	Path        string           `json:"path"`        // File path to navigate to
+	Line        int              `json:"line"`        // Line number to jump to (0 if not applicable)
+	Relevance   int              `json:"relevance"`   // Match quality score for sorting
+	MatchedText string           `json:"matchedText"` // The text that matched the query
 }
 
 // SearchResponse for GET /api/search

@@ -4,7 +4,6 @@ import {
   listFiles,
   getFileContent,
   getRelatedTests,
-  getSuggestions,
   getSourceReferences,
   getComments,
   createComment,
@@ -24,7 +23,6 @@ import type {
   ListFilesResponse,
   FileResponse,
   TestsResponse,
-  SuggestionsResponse,
   TestFileResponse,
   CommentsResponse,
   CommentResponse,
@@ -185,31 +183,6 @@ describe('API Client', () => {
     });
   });
 
-  describe('getSuggestions', () => {
-    it('fetches test suggestions', async () => {
-      const mockResponse: SuggestionsResponse = {
-        sourceFile: 'src/utils.ts',
-        suggestions: [
-          {
-            sourceFile: 'src/utils.ts',
-            targetLines: { start: 5, end: 10 },
-            reason: 'Function not tested',
-            suggestedName: 'should handle edge cases',
-            testSkeleton: 'test("should handle edge cases", () => {})',
-            priority: 'high',
-          },
-        ],
-      };
-
-      vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-        new Response(JSON.stringify(mockResponse), { status: 200 })
-      );
-
-      const result = await getSuggestions('src/utils.ts');
-      expect(result).toEqual(mockResponse);
-    });
-  });
-
   describe('getSourceReferences', () => {
     it('fetches source references', async () => {
       const mockResponse: TestFileResponse = {
@@ -347,7 +320,6 @@ describe('API Client', () => {
 
       const result = await exportContext('src/App.tsx', {
         includeTests: true,
-        includeSuggestions: false,
         contextLines: 5,
       });
       expect(result).toEqual(mockResponse);
@@ -358,7 +330,6 @@ describe('API Client', () => {
         sourceFile: 'src/App.tsx',
         codeContext: [],
         tests: [],
-        suggestions: [],
         formatted: 'formatted output',
       };
 
@@ -368,7 +339,6 @@ describe('API Client', () => {
 
       await exportContext('src/App.tsx', {
         includeTests: true,
-        includeSuggestions: true,
         contextLines: 10,
       });
 
@@ -377,7 +347,6 @@ describe('API Client', () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           includeTests: true,
-          includeSuggestions: true,
           contextLines: 10,
         }),
       });
@@ -414,7 +383,6 @@ describe('API Client', () => {
             sourceValid: false,
             sourceIsAbsolute: false,
             sourceMessage: 'File not found',
-            suggestionsCount: 0,
             commentsCount: 0,
             invalidTestIssues: [],
           },

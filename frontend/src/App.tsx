@@ -3,7 +3,6 @@ import { ThreePanel } from './components/Layout/ThreePanel';
 import { FileList } from './components/FileExplorer/FileList';
 import { FilePreview } from './components/FilePreview/FilePreview';
 import { TestPanel } from './components/TestPanel/TestPanel';
-import { SuggestionsPanel } from './components/SuggestionsPanel/SuggestionsPanel';
 import { CommentPanel } from './components/CommentPanel';
 import { ExportModal } from './components/ExportModal';
 import { GlobalSearchPalette } from './components/GlobalSearchPalette';
@@ -11,7 +10,6 @@ import { useFiles } from './hooks/useFiles';
 import { useFileContent } from './hooks/useFileContent';
 import { useTests } from './hooks/useTests';
 import { useDirectoryTests } from './hooks/useDirectoryTests';
-import { useSuggestions } from './hooks/useSuggestions';
 import { useComments } from './hooks/useComments';
 import { useExport } from './hooks/useExport';
 import { useSources } from './hooks/useSources';
@@ -20,7 +18,7 @@ import { useMetadataIssues } from './hooks/useMetadataIssues';
 import type { FileEntry, TestDetail, SearchResult } from './types';
 import { filterItemsByLine } from './utils/testUtils';
 
-type RightPanelTab = 'tests' | 'suggestions' | 'comments';
+type RightPanelTab = 'tests' | 'comments';
 
 function App() {
   // Initialize state from URL query parameters
@@ -123,9 +121,6 @@ function App() {
 
   // Load tests for selected file
   const { tests, loading: testsLoading, error: testsError } = useTests(selectedFilePath);
-
-  // Load suggestions for selected file
-  const { suggestions, loading: suggestionsLoading, error: suggestionsError } = useSuggestions(selectedFilePath);
 
   // Load comments for selected file
   const {
@@ -232,7 +227,6 @@ function App() {
     try {
       await performExport(selectedFilePath, {
         includeTests: true,
-        includeSuggestions: true,
         contextLines: 5,
       });
     } catch (err) {
@@ -321,18 +315,6 @@ function App() {
               </button>
               <button
                 type="button"
-                className={`tab-button ${activeRightTab === 'suggestions' ? 'tab-button--active' : ''}`}
-                onClick={() => setActiveRightTab('suggestions')}
-              >
-                Suggestions
-                {suggestions.length > 0 && (
-                  <span className={`tab-badge ${activeRightTab === 'suggestions' ? 'tab-badge--active' : ''}`}>
-                    {suggestions.length}
-                  </span>
-                )}
-              </button>
-              <button
-                type="button"
                 className={`tab-button ${activeRightTab === 'comments' ? 'tab-button--active' : ''}`}
                 onClick={() => setActiveRightTab('comments')}
               >
@@ -353,13 +335,6 @@ function App() {
                   loading={testsLoading}
                   error={testsError}
                   highlightedTestIds={highlightedTestIds}
-                />
-              )}
-              {activeRightTab === 'suggestions' && (
-                <SuggestionsPanel
-                  suggestions={suggestions}
-                  loading={suggestionsLoading}
-                  error={suggestionsError}
                 />
               )}
               {activeRightTab === 'comments' && (

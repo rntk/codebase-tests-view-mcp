@@ -440,18 +440,6 @@ func TestGetAllMetadata(t *testing.T) {
 			t.Fatalf("SetTestMetadata failed: %v", err)
 		}
 
-		err = store.AddSuggestions("source.go", []TestSuggestion{
-			{
-				SuggestedName: "TestSuggestion",
-				Reason:        "Missing coverage",
-				TargetLines:   LineRange{Start: 20, End: 25},
-				Priority:      "high",
-			},
-		})
-		if err != nil {
-			t.Fatalf("AddSuggestions failed: %v", err)
-		}
-
 		_, err = store.AddComment("source.go", files.Comment{
 			Line:    7,
 			Content: "Original comment",
@@ -462,15 +450,11 @@ func TestGetAllMetadata(t *testing.T) {
 
 		all := store.GetAllMetadata()
 		all["source.go"].Tests[0].TestName = "Mutated"
-		all["source.go"].Suggestions[0].Reason = "Changed"
 		all["source.go"].Comments[0].Content = "Updated"
 
 		original := store.GetTestMetadata("source.go")
 		if original.Tests[0].TestName != "TestOriginal" {
 			t.Fatalf("expected original test name to remain unchanged, got %q", original.Tests[0].TestName)
-		}
-		if original.Suggestions[0].Reason != "Missing coverage" {
-			t.Fatalf("expected original suggestion reason to remain unchanged, got %q", original.Suggestions[0].Reason)
 		}
 		if original.Comments[0].Content != "Original comment" {
 			t.Fatalf("expected original comment to remain unchanged, got %q", original.Comments[0].Content)
@@ -530,166 +514,6 @@ func TestStorePersistence(t *testing.T) {
 		err := store.Save()
 		if err != nil {
 			t.Fatalf("Save failed: %v", err)
-		}
-	})
-}
-
-func TestAddSuggestions(t *testing.T) {
-	t.Run("adds suggestions to empty store", func(t *testing.T) {
-		store := NewStore("")
-
-		suggestions := []TestSuggestion{
-			{
-				FunctionName:  "Process",
-				TargetLines:   LineRange{Start: 10, End: 20},
-				Reason:        "Missing test",
-				SuggestedName: "TestProcess",
-				TestSkeleton:  "func TestProcess(t *testing.T) {}",
-				Priority:      "high",
-			},
-		}
-
-		err := store.AddSuggestions("source.go", suggestions)
-		if err != nil {
-			t.Fatalf("AddSuggestions failed: %v", err)
-		}
-
-		result := store.GetSuggestions("source.go")
-		if len(result) != 1 {
-			t.Fatalf("expected 1 suggestion, got %d", len(result))
-		}
-	})
-
-	t.Run("merges suggestions with existing", func(t *testing.T) {
-		store := NewStore("")
-
-		// Add first suggestion
-		err := store.AddSuggestions("source.go", []TestSuggestion{
-			{
-				TargetLines:   LineRange{Start: 10, End: 20},
-				Reason:        "Missing test 1",
-				SuggestedName: "TestOne",
-				TestSkeleton:  "func TestOne(t *testing.T) {}",
-				Priority:      "high",
-			},
-		})
-		if err != nil {
-			t.Fatalf("AddSuggestions failed: %v", err)
-		}
-
-		// Add second suggestion
-		err = store.AddSuggestions("source.go", []TestSuggestion{
-			{
-				TargetLines:   LineRange{Start: 30, End: 40},
-				Reason:        "Missing test 2",
-				SuggestedName: "TestTwo",
-				TestSkeleton:  "func TestTwo(t *testing.T) {}",
-				Priority:      "medium",
-			},
-		})
-		if err != nil {
-			t.Fatalf("AddSuggestions failed: %v", err)
-		}
-
-		result := store.GetSuggestions("source.go")
-		if len(result) != 2 {
-			t.Fatalf("expected 2 suggestions, got %d", len(result))
-		}
-	})
-
-	t.Run("updates existing suggestion with same name", func(t *testing.T) {
-		store := NewStore("")
-
-		// Add first suggestion
-		err := store.AddSuggestions("source.go", []TestSuggestion{
-			{
-				TargetLines:   LineRange{Start: 10, End: 20},
-				Reason:        "Original reason",
-				SuggestedName: "TestSame",
-				TestSkeleton:  "func TestSame(t *testing.T) {}",
-				Priority:      "high",
-			},
-		})
-		if err != nil {
-			t.Fatalf("AddSuggestions failed: %v", err)
-		}
-
-		// Update with same name
-		err = store.AddSuggestions("source.go", []TestSuggestion{
-			{
-				TargetLines:   LineRange{Start: 15, End: 25},
-				Reason:        "Updated reason",
-				SuggestedName: "TestSame",
-				TestSkeleton:  "func TestSameUpdated(t *testing.T) {}",
-				Priority:      "low",
-			},
-		})
-		if err != nil {
-			t.Fatalf("AddSuggestions failed: %v", err)
-		}
-
-		result := store.GetSuggestions("source.go")
-		if len(result) != 1 {
-			t.Fatalf("expected 1 suggestion, got %d", len(result))
-		}
-
-		if result[0].Reason != "Updated reason" {
-			t.Errorf("expected reason %q, got %q", "Updated reason", result[0].Reason)
-		}
-	})
-
-	t.Run("GetSuggestions returns nil when no suggestions", func(t *testing.T) {
-		store := NewStore("")
-
-		result := store.GetSuggestions("nonexistent.go")
-		if result != nil {
-			t.Fatalf("expected nil, got %+v", result)
-		}
-	})
-
-	t.Run("GetSuggestions returns nil when metadata exists but no suggestions", func(t *testing.T) {
-		store := NewStore("")
-
-		// Add tests but no suggestions
-		err := store.SetTestMetadata("source.go", []TestReference{
-			{
-				TestFile:     "test_test.go",
-				TestName:     "TestSomething",
-				LineRange:    LineRange{Start: 1, End: 10},
-				CoveredLines: LineRange{Start: 1, End: 5},
-			},
-		})
-		if err != nil {
-			t.Fatalf("SetTestMetadata failed: %v", err)
-		}
-
-		result := store.GetSuggestions("source.go")
-		if result != nil {
-			t.Fatalf("expected nil, got %+v", result)
-		}
-	})
-
-	t.Run("GetSuggestions returns copy", func(t *testing.T) {
-		store := NewStore("")
-
-		err := store.AddSuggestions("source.go", []TestSuggestion{
-			{
-				SuggestedName: "TestCopy",
-				Reason:        "Original reason",
-				TargetLines:   LineRange{Start: 1, End: 2},
-				Priority:      "medium",
-			},
-		})
-		if err != nil {
-			t.Fatalf("AddSuggestions failed: %v", err)
-		}
-
-		result := store.GetSuggestions("source.go")
-		result[0].Reason = "Mutated"
-
-		fresh := store.GetSuggestions("source.go")
-		if fresh[0].Reason != "Original reason" {
-			t.Fatalf("expected original suggestion reason to remain unchanged, got %q", fresh[0].Reason)
 		}
 	})
 }
@@ -1027,7 +851,6 @@ func TestStoreConcurrency(t *testing.T) {
 			go func() {
 				_ = store.GetTestMetadata("source.go")
 				_ = store.GetAllMetadata()
-				_ = store.GetSuggestions("source.go")
 				_ = store.GetComments("source.go")
 				done <- true
 			}()

@@ -115,8 +115,8 @@ func TestHandlerHandle(t *testing.T) {
 			t.Fatal("tools is not an array")
 		}
 
-		if len(tools) != 3 {
-			t.Errorf("expected 3 tools, got %d", len(tools))
+		if len(tools) != 2 {
+			t.Errorf("expected 2 tools, got %d", len(tools))
 		}
 	})
 
@@ -335,37 +335,6 @@ func TestHandlerHandle(t *testing.T) {
 		}
 		if !strings.Contains(response.Error.Message, "outside configured codebase root") {
 			t.Fatalf("unexpected error message: %s", response.Error.Message)
-		}
-	})
-
-	t.Run("tools/call with suggest-missing-tests", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		handler := NewHandler(metaStore)
-
-		reqBody := JSONRPCRequest{
-			JSONRPC: "2.0",
-			ID:      6,
-			Method:  "tools/call",
-			Params:  json.RawMessage(`{"name": "suggest-missing-tests", "arguments": {"sourceFile": "test.go", "suggestions": [{"targetLines": {"start": 1, "end": 10}, "reason": "Missing test", "suggestedName": "TestMissing", "testSkeleton": "func TestMissing(t *testing.T) {}", "priority": "high"}]}}`),
-		}
-
-		body, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
-		rr := httptest.NewRecorder()
-
-		handler.Handle(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-
-		var response JSONRPCResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.Error != nil {
-			t.Errorf("unexpected error: %+v", response.Error)
 		}
 	})
 
@@ -713,87 +682,6 @@ func TestHandlerHandle(t *testing.T) {
 		}
 	})
 
-	t.Run("suggest-missing-tests with missing sourceFile returns error", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		handler := NewHandler(metaStore)
-
-		reqBody := JSONRPCRequest{
-			JSONRPC: "2.0",
-			ID:      19,
-			Method:  "tools/call",
-			Params:  json.RawMessage(`{"name": "suggest-missing-tests", "arguments": {"suggestions": []}}`),
-		}
-
-		body, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
-		rr := httptest.NewRecorder()
-
-		handler.Handle(rr, req)
-
-		var response JSONRPCResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.Error == nil {
-			t.Fatal("expected error for missing sourceFile")
-		}
-	})
-
-	t.Run("suggest-missing-tests with missing suggestions returns error", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		handler := NewHandler(metaStore)
-
-		reqBody := JSONRPCRequest{
-			JSONRPC: "2.0",
-			ID:      20,
-			Method:  "tools/call",
-			Params:  json.RawMessage(`{"name": "suggest-missing-tests", "arguments": {"sourceFile": "test.go"}}`),
-		}
-
-		body, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
-		rr := httptest.NewRecorder()
-
-		handler.Handle(rr, req)
-
-		var response JSONRPCResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.Error == nil {
-			t.Fatal("expected error for missing suggestions")
-		}
-	})
-
-	t.Run("suggest-missing-tests with invalid suggestions format returns error", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		handler := NewHandler(metaStore)
-
-		reqBody := JSONRPCRequest{
-			JSONRPC: "2.0",
-			ID:      21,
-			Method:  "tools/call",
-			Params:  json.RawMessage(`{"name": "suggest-missing-tests", "arguments": {"sourceFile": "test.go", "suggestions": "invalid"}}`),
-		}
-
-		body, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
-		rr := httptest.NewRecorder()
-
-		handler.Handle(rr, req)
-
-		var response JSONRPCResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-
-		if response.Error == nil {
-			t.Fatal("expected error for invalid suggestions format")
-		}
-	})
-
 	t.Run("prompts/get with missing functionName returns error", func(t *testing.T) {
 		metaStore := metadata.NewStore("")
 		handler := NewHandler(metaStore)
@@ -947,52 +835,6 @@ func TestHandlerGetFunctionMetadata(t *testing.T) {
 		}
 		if tests[0].(map[string]interface{})["testName"] != "TestFoo" {
 			t.Errorf("expected TestFoo, got %v", tests[0].(map[string]interface{})["testName"])
-		}
-	})
-
-	t.Run("tools/call with get-function-metadata returns filtered suggestions", func(t *testing.T) {
-		metaStore := metadata.NewStore("")
-		if err := metaStore.AddSuggestions("src.go", []metadata.TestSuggestion{
-			{FunctionName: "Foo", SuggestedName: "TestFooEdge", Reason: "edge case", Priority: "high"},
-			{FunctionName: "Bar", SuggestedName: "TestBarEdge", Reason: "edge case", Priority: "low"},
-		}); err != nil {
-			t.Fatalf("add suggestions: %v", err)
-		}
-		handler := NewHandler(metaStore)
-
-		reqBody := JSONRPCRequest{
-			JSONRPC: "2.0",
-			ID:      34,
-			Method:  "tools/call",
-			Params:  json.RawMessage(`{"name":"get-function-metadata","arguments":{"sourceFile":"src.go","functionName":"Foo"}}`),
-		}
-		body, _ := json.Marshal(reqBody)
-		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
-		rr := httptest.NewRecorder()
-		handler.Handle(rr, req)
-
-		var response JSONRPCResponse
-		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
-			t.Fatalf("decode response: %v", err)
-		}
-		if response.Error != nil {
-			t.Fatalf("unexpected error: %+v", response.Error)
-		}
-
-		result := response.Result.(map[string]interface{})
-		content := result["content"].([]interface{})
-		text := content[0].(map[string]interface{})["text"].(string)
-
-		var res map[string]interface{}
-		if err := json.Unmarshal([]byte(text), &res); err != nil {
-			t.Fatalf("decode result text: %v", err)
-		}
-		suggestions := res["suggestions"].([]interface{})
-		if len(suggestions) != 1 {
-			t.Fatalf("expected 1 suggestion for Foo, got %d", len(suggestions))
-		}
-		if suggestions[0].(map[string]interface{})["suggestedName"] != "TestFooEdge" {
-			t.Errorf("expected TestFooEdge, got %v", suggestions[0].(map[string]interface{})["suggestedName"])
 		}
 	})
 

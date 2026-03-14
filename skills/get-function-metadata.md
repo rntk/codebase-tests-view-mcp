@@ -1,7 +1,7 @@
 # Skill: get-function-metadata
 
 ## Description
-Retrieve existing metadata for a specific function in a source file. Use this to check what tests, suggestions, and comments have already been submitted before running a full analysis.
+Retrieve existing metadata for a specific function in a source file. Use this to check what tests have already been submitted before running a full analysis.
 
 ## MCP Tools Required
 - `get-function-metadata`: Queries stored metadata filtered to a single function.
@@ -15,7 +15,6 @@ The tool returns a JSON object with:
 - `sourceFile`: The canonicalized source file path.
 - `functionName`: The queried function name.
 - `tests`: Array of `TestReference` objects already submitted for this function (may be empty).
-- `suggestions`: Array of `TestSuggestion` objects already submitted for this function (may be empty).
 
 ## How to Use
 1. Call `get-function-metadata` with `sourceFile` and `functionName` before running `codebase-tests-review` or `test-to-source-review`.

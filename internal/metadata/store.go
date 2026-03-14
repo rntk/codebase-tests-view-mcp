@@ -155,10 +155,6 @@ func cloneFileMetadata(meta *FileMetadata) *FileMetadata {
 		cloned.Tests = append([]TestReference(nil), meta.Tests...)
 	}
 
-	if len(meta.Suggestions) > 0 {
-		cloned.Suggestions = append([]TestSuggestion(nil), meta.Suggestions...)
-	}
-
 	if len(meta.Comments) > 0 {
 		cloned.Comments = append([]files.Comment(nil), meta.Comments...)
 	}
@@ -203,59 +199,6 @@ func (s *Store) Save() error {
 	defer s.mu.RUnlock()
 
 	return s.saveUnsafe()
-}
-
-// AddSuggestions adds test suggestions to a file, merging with existing suggestions
-func (s *Store) AddSuggestions(filePath string, suggestions []TestSuggestion) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	existing := s.metadata[filePath]
-	if existing == nil {
-		// No existing metadata, create new
-		s.metadata[filePath] = &FileMetadata{Suggestions: suggestions}
-	} else {
-		// Merge with existing suggestions
-		// Use a map to deduplicate based on suggestedName
-		suggestionMap := make(map[string]TestSuggestion)
-
-		// Add existing suggestions first
-		for _, sugg := range existing.Suggestions {
-			suggestionMap[sugg.SuggestedName] = sugg
-		}
-
-		// Add/update with new suggestions
-		for _, sugg := range suggestions {
-			suggestionMap[sugg.SuggestedName] = sugg
-		}
-
-		// Convert map back to slice
-		mergedSuggestions := make([]TestSuggestion, 0, len(suggestionMap))
-		for _, sugg := range suggestionMap {
-			mergedSuggestions = append(mergedSuggestions, sugg)
-		}
-
-		s.metadata[filePath].Suggestions = mergedSuggestions
-	}
-
-	if s.filePath != "" {
-		return s.saveUnsafe()
-	}
-
-	return nil
-}
-
-// GetSuggestions retrieves test suggestions for a file
-func (s *Store) GetSuggestions(filePath string) []TestSuggestion {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	meta := s.metadata[filePath]
-	if meta == nil {
-		return nil
-	}
-
-	return append([]TestSuggestion(nil), meta.Suggestions...)
 }
 
 // ==================== COMMENT METHODS ====================

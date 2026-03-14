@@ -33,7 +33,6 @@ describe('useMetadataIssues', () => {
           sourceValid: false,
           sourceIsAbsolute: false,
           sourceMessage: 'File not found',
-          suggestionsCount: 0,
           commentsCount: 0,
           invalidTestIssues: [],
         },
@@ -69,13 +68,13 @@ describe('useMetadataIssues', () => {
 
   it('should refresh when refresh function is called', async () => {
     const mockResponse1: MetadataIssuesResponse = {
-      issues: [{ sourceFile: 'file1.ts', sourceValid: false, sourceIsAbsolute: false, sourceMessage: 'error1', suggestionsCount: 0, commentsCount: 0, invalidTestIssues: [] }],
+      issues: [{ sourceFile: 'file1.ts', sourceValid: false, sourceIsAbsolute: false, sourceMessage: 'error1', commentsCount: 0, invalidTestIssues: [] }],
     };
 
     const mockResponse2: MetadataIssuesResponse = {
       issues: [
-        { sourceFile: 'file1.ts', sourceValid: false, sourceIsAbsolute: false, sourceMessage: 'error1', suggestionsCount: 0, commentsCount: 0, invalidTestIssues: [] },
-        { sourceFile: 'file2.ts', sourceValid: false, sourceIsAbsolute: false, sourceMessage: 'error2', suggestionsCount: 0, commentsCount: 0, invalidTestIssues: [] },
+        { sourceFile: 'file1.ts', sourceValid: false, sourceIsAbsolute: false, sourceMessage: 'error1', commentsCount: 0, invalidTestIssues: [] },
+        { sourceFile: 'file2.ts', sourceValid: false, sourceIsAbsolute: false, sourceMessage: 'error2', commentsCount: 0, invalidTestIssues: [] },
       ],
     };
 
@@ -137,7 +136,6 @@ describe('useMetadataIssues', () => {
           sourceFile: 'src/utils.ts',
           sourceValid: true,
           sourceIsAbsolute: false,
-          suggestionsCount: 2,
           commentsCount: 1,
           invalidTestIssues: [
             {
@@ -161,7 +159,6 @@ describe('useMetadataIssues', () => {
 
     const issue = result.current.issues[0];
     expect(issue.sourceValid).toBe(true);
-    expect(issue.suggestionsCount).toBe(2);
     expect(issue.commentsCount).toBe(1);
     expect(issue.invalidTestIssues).toHaveLength(1);
     expect(issue.invalidTestIssues[0].testName).toBe('oldTest');

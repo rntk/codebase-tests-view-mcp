@@ -2,7 +2,6 @@ import type {
   ListFilesResponse,
   FileResponse,
   TestsResponse,
-  SuggestionsResponse,
   TestFileResponse,
   CommentsResponse,
   CommentResponse,
@@ -62,11 +61,6 @@ export async function getFileContent(path: string): Promise<FileResponse> {
 export async function getRelatedTests(path: string): Promise<TestsResponse> {
   const response = await fetch(`${API_BASE}/files/${encodeURIComponent(path)}/tests`);
   return handleResponse<TestsResponse>(response);
-}
-
-export async function getSuggestions(path: string): Promise<SuggestionsResponse> {
-  const response = await fetch(`${API_BASE}/files/${encodeURIComponent(path)}/suggestions`);
-  return handleResponse<SuggestionsResponse>(response);
 }
 
 export async function getSourceReferences(path: string): Promise<TestFileResponse> {

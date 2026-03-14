@@ -161,7 +161,6 @@ describe('useFileContent', () => {
         mimeType: 'text/typescript',
         metadata: {
           tests: [],
-          suggestions: [],
         },
       },
     };

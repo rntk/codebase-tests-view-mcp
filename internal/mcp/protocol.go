@@ -241,8 +241,6 @@ func (h *Handler) handleToolsCall(params json.RawMessage) (interface{}, error) {
 	switch callParams.Name {
 	case "submit-test-metadata":
 		return h.executeSubmitTestMetadata(callParams.Arguments)
-	case "suggest-missing-tests":
-		return h.executeSuggestMissingTests(callParams.Arguments)
 	case "get-function-metadata":
 		return h.executeGetFunctionMetadata(callParams.Arguments)
 	default:
@@ -339,25 +337,18 @@ func (h *Handler) executeGetFunctionMetadata(args map[string]interface{}) (inter
 		SourceFile   string                   `json:"sourceFile"`
 		FunctionName string                   `json:"functionName"`
 		Tests        []metadata.TestReference `json:"tests"`
-		Suggestions  []metadata.TestSuggestion `json:"suggestions"`
 	}
 
 	res := result{
 		SourceFile:   canonicalFile,
 		FunctionName: functionName,
 		Tests:        []metadata.TestReference{},
-		Suggestions:  []metadata.TestSuggestion{},
 	}
 
 	if fileMeta != nil {
 		for _, t := range fileMeta.Tests {
 			if t.FunctionName == functionName {
 				res.Tests = append(res.Tests, t)
-			}
-		}
-		for _, s := range fileMeta.Suggestions {
-			if s.FunctionName == functionName {
-				res.Suggestions = append(res.Suggestions, s)
 			}
 		}
 	}
@@ -396,54 +387,6 @@ func validateOptionalLineRange(field string, lineRange metadata.LineRange) error
 		return fmt.Errorf("%s start must be <= end", field)
 	}
 	return nil
-}
-
-// executeSuggestMissingTests executes the suggest-missing-tests tool
-func (h *Handler) executeSuggestMissingTests(args map[string]interface{}) (interface{}, error) {
-	// Extract sourceFile
-	sourceFile, ok := args["sourceFile"].(string)
-	if !ok {
-		return nil, fmt.Errorf("sourceFile is required and must be a string")
-	}
-	sourceFile, err := h.canonicalizePath(sourceFile)
-	if err != nil {
-		return nil, err
-	}
-
-	// Extract suggestions array
-	suggestionsRaw, ok := args["suggestions"]
-	if !ok {
-		return nil, fmt.Errorf("suggestions is required")
-	}
-
-	suggestionsJSON, err := json.Marshal(suggestionsRaw)
-	if err != nil {
-		return nil, fmt.Errorf("failed to marshal suggestions: %w", err)
-	}
-
-	var suggestions []metadata.TestSuggestion
-	if err := json.Unmarshal(suggestionsJSON, &suggestions); err != nil {
-		return nil, fmt.Errorf("invalid suggestions format: %w", err)
-	}
-
-	// Set the sourceFile on each suggestion
-	for i := range suggestions {
-		suggestions[i].SourceFile = sourceFile
-	}
-
-	// Store suggestions (merge with existing)
-	if err := h.metaStore.AddSuggestions(sourceFile, suggestions); err != nil {
-		return nil, fmt.Errorf("failed to store suggestions: %w", err)
-	}
-
-	return ToolsCallResult{
-		Content: []ContentItem{
-			{
-				Type: "text",
-				Text: fmt.Sprintf("Successfully stored %d test suggestion(s) for %s", len(suggestions), sourceFile),
-			},
-		},
-	}, nil
 }
 
 // handlePromptsList handles the prompts/list request

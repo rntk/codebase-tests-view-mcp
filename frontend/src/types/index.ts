@@ -35,23 +35,7 @@ export interface TestReference {
 
 export interface FileMetadata {
   tests?: TestReference[];
-  suggestions?: TestSuggestion[];
   comments?: Comment[];
-}
-
-export interface TestSuggestion {
-  sourceFile: string;
-  functionName?: string;
-  targetLines: LineRange;
-  reason: string;
-  suggestedName: string;
-  testSkeleton: string;
-  priority: 'high' | 'medium' | 'low';
-}
-
-export interface SuggestionsResponse {
-  sourceFile: string;
-  suggestions: TestSuggestion[];
 }
 
 export interface FileContent {
@@ -152,7 +136,6 @@ export interface CodeContextBlock {
 
 export interface ExportContextRequest {
   includeTests: boolean;
-  includeSuggestions: boolean;
   contextLines: number;
 }
 
@@ -160,7 +143,6 @@ export interface ExportContextResponse {
   sourceFile: string;
   codeContext: CodeContextBlock[];
   tests?: TestDetail[];
-  suggestions?: TestSuggestion[];
   formatted: string;
 }
 
@@ -194,7 +176,6 @@ export interface MetadataIssue {
   sourceValid: boolean;
   sourceIsAbsolute: boolean;
   sourceMessage?: string;
-  suggestionsCount: number;
   commentsCount: number;
   invalidTestIssues: MetadataTestIssue[];
 }

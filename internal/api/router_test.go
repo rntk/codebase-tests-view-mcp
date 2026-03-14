@@ -31,7 +31,6 @@ func TestSetupRoutes(t *testing.T) {
 			{http.MethodGet, "/api/files"},
 			{http.MethodGet, "/api/files/test.go"},
 			{http.MethodGet, "/api/files/test.go/tests"},
-			{http.MethodGet, "/api/files/test.go/suggestions"},
 			{http.MethodGet, "/api/files/test.go/sources"},
 			{http.MethodGet, "/api/files/test.go/comments"},
 			{http.MethodPost, "/api/files/test.go/comments"},
@@ -104,24 +103,6 @@ func TestSetupRoutes(t *testing.T) {
 		router := SetupRoutes(handler)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests", nil)
-		rr := httptest.NewRecorder()
-
-		router.ServeHTTP(rr, req)
-
-		if rr.Code != http.StatusOK {
-			t.Errorf("status = %d, want %d", rr.Code, http.StatusOK)
-		}
-	})
-
-	t.Run("router handles GET /api/files/{path}/suggestions", func(t *testing.T) {
-		fileService := files.NewService(t.TempDir())
-		metaStore := metadata.NewStore("")
-		mcpHandler := mcp.NewHandler(metaStore)
-		handler := NewHandler(fileService, metaStore, mcpHandler)
-
-		router := SetupRoutes(handler)
-
-		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/suggestions", nil)
 		rr := httptest.NewRecorder()
 
 		router.ServeHTTP(rr, req)

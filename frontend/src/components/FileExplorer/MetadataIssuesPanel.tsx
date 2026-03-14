@@ -193,9 +193,9 @@ export const MetadataIssuesPanel: React.FC<MetadataIssuesPanelProps> = ({
               </>
             )}
 
-            {(issue.commentsCount > 0 || issue.suggestionsCount > 0) && (
+            {issue.commentsCount > 0 && (
               <div className="metadata-issue-meta">
-                {issue.commentsCount} comment{issue.commentsCount === 1 ? '' : 's'} and {issue.suggestionsCount} suggestion{issue.suggestionsCount === 1 ? '' : 's'} are attached to this source entry.
+                {issue.commentsCount} comment{issue.commentsCount === 1 ? '' : 's'} are attached to this source entry.
               </div>
             )}
 
