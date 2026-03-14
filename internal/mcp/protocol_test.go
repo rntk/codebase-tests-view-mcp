@@ -115,8 +115,8 @@ func TestHandlerHandle(t *testing.T) {
 			t.Fatal("tools is not an array")
 		}
 
-		if len(tools) != 2 {
-			t.Errorf("expected 2 tools, got %d", len(tools))
+		if len(tools) != 3 {
+			t.Errorf("expected 3 tools, got %d", len(tools))
 		}
 	})
 
@@ -899,6 +899,182 @@ func TestHandlerHandle(t *testing.T) {
 
 		if response.Error == nil {
 			t.Fatal("expected error for missing testFilePath")
+		}
+	})
+}
+
+func TestHandlerGetFunctionMetadata(t *testing.T) {
+	t.Run("tools/call with get-function-metadata returns filtered tests", func(t *testing.T) {
+		metaStore := metadata.NewStore("")
+		if err := metaStore.SetTestMetadata("src.go", []metadata.TestReference{
+			{TestFile: "src_test.go", TestName: "TestFoo", FunctionName: "Foo", Comment: "tests Foo", LineRange: metadata.LineRange{Start: 1, End: 5}, CoveredLines: metadata.LineRange{Start: 1, End: 3}},
+			{TestFile: "src_test.go", TestName: "TestBar", FunctionName: "Bar", Comment: "tests Bar", LineRange: metadata.LineRange{Start: 6, End: 10}, CoveredLines: metadata.LineRange{Start: 4, End: 6}},
+		}); err != nil {
+			t.Fatalf("set metadata: %v", err)
+		}
+		handler := NewHandler(metaStore)
+
+		reqBody := JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      30,
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{"name":"get-function-metadata","arguments":{"sourceFile":"src.go","functionName":"Foo"}}`),
+		}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+		handler.Handle(rr, req)
+
+		var response JSONRPCResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Error != nil {
+			t.Fatalf("unexpected error: %+v", response.Error)
+		}
+
+		result := response.Result.(map[string]interface{})
+		content := result["content"].([]interface{})
+		text := content[0].(map[string]interface{})["text"].(string)
+
+		var res map[string]interface{}
+		if err := json.Unmarshal([]byte(text), &res); err != nil {
+			t.Fatalf("decode result text: %v", err)
+		}
+		tests := res["tests"].([]interface{})
+		if len(tests) != 1 {
+			t.Fatalf("expected 1 test for Foo, got %d", len(tests))
+		}
+		if tests[0].(map[string]interface{})["testName"] != "TestFoo" {
+			t.Errorf("expected TestFoo, got %v", tests[0].(map[string]interface{})["testName"])
+		}
+	})
+
+	t.Run("tools/call with get-function-metadata returns filtered suggestions", func(t *testing.T) {
+		metaStore := metadata.NewStore("")
+		if err := metaStore.AddSuggestions("src.go", []metadata.TestSuggestion{
+			{FunctionName: "Foo", SuggestedName: "TestFooEdge", Reason: "edge case", Priority: "high"},
+			{FunctionName: "Bar", SuggestedName: "TestBarEdge", Reason: "edge case", Priority: "low"},
+		}); err != nil {
+			t.Fatalf("add suggestions: %v", err)
+		}
+		handler := NewHandler(metaStore)
+
+		reqBody := JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      34,
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{"name":"get-function-metadata","arguments":{"sourceFile":"src.go","functionName":"Foo"}}`),
+		}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+		handler.Handle(rr, req)
+
+		var response JSONRPCResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Error != nil {
+			t.Fatalf("unexpected error: %+v", response.Error)
+		}
+
+		result := response.Result.(map[string]interface{})
+		content := result["content"].([]interface{})
+		text := content[0].(map[string]interface{})["text"].(string)
+
+		var res map[string]interface{}
+		if err := json.Unmarshal([]byte(text), &res); err != nil {
+			t.Fatalf("decode result text: %v", err)
+		}
+		suggestions := res["suggestions"].([]interface{})
+		if len(suggestions) != 1 {
+			t.Fatalf("expected 1 suggestion for Foo, got %d", len(suggestions))
+		}
+		if suggestions[0].(map[string]interface{})["suggestedName"] != "TestFooEdge" {
+			t.Errorf("expected TestFooEdge, got %v", suggestions[0].(map[string]interface{})["suggestedName"])
+		}
+	})
+
+	t.Run("tools/call with get-function-metadata returns empty for unknown function", func(t *testing.T) {
+		handler := NewHandler(metadata.NewStore(""))
+
+		reqBody := JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      31,
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{"name":"get-function-metadata","arguments":{"sourceFile":"src.go","functionName":"Unknown"}}`),
+		}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+		handler.Handle(rr, req)
+
+		var response JSONRPCResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Error != nil {
+			t.Fatalf("unexpected error: %+v", response.Error)
+		}
+
+		result := response.Result.(map[string]interface{})
+		content := result["content"].([]interface{})
+		text := content[0].(map[string]interface{})["text"].(string)
+
+		var res map[string]interface{}
+		if err := json.Unmarshal([]byte(text), &res); err != nil {
+			t.Fatalf("decode result text: %v", err)
+		}
+		tests, _ := res["tests"].([]interface{})
+		if len(tests) != 0 {
+			t.Fatalf("expected 0 tests for unknown function, got %d", len(tests))
+		}
+	})
+
+	t.Run("tools/call with get-function-metadata missing sourceFile returns error", func(t *testing.T) {
+		handler := NewHandler(metadata.NewStore(""))
+
+		reqBody := JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      32,
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{"name":"get-function-metadata","arguments":{"functionName":"Foo"}}`),
+		}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+		handler.Handle(rr, req)
+
+		var response JSONRPCResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Error == nil {
+			t.Fatal("expected error for missing sourceFile")
+		}
+	})
+
+	t.Run("tools/call with get-function-metadata missing functionName returns error", func(t *testing.T) {
+		handler := NewHandler(metadata.NewStore(""))
+
+		reqBody := JSONRPCRequest{
+			JSONRPC: "2.0",
+			ID:      33,
+			Method:  "tools/call",
+			Params:  json.RawMessage(`{"name":"get-function-metadata","arguments":{"sourceFile":"src.go"}}`),
+		}
+		body, _ := json.Marshal(reqBody)
+		req := httptest.NewRequest(http.MethodPost, "/api/mcp", bytes.NewReader(body))
+		rr := httptest.NewRecorder()
+		handler.Handle(rr, req)
+
+		var response JSONRPCResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+		if response.Error == nil {
+			t.Fatal("expected error for missing functionName")
 		}
 	})
 }

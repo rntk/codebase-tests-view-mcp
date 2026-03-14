@@ -134,5 +134,23 @@ func GetTools() []Tool {
 				"required": ["sourceFile", "suggestions"]
 			}`),
 		},
+		{
+			Name:        "get-function-metadata",
+			Description: "Retrieve existing metadata for a specific function in a source file. Returns all tests, suggestions, and comments associated with the given function. Use this before submitting new metadata to check what already exists.",
+			InputSchema: json.RawMessage(`{
+				"type": "object",
+				"properties": {
+					"sourceFile": {
+						"type": "string",
+						"description": "Repo-relative path to the source file, relative to the server's configured -dir root"
+					},
+					"functionName": {
+						"type": "string",
+						"description": "Name of the source function to retrieve metadata for"
+					}
+				},
+				"required": ["sourceFile", "functionName"]
+			}`),
+		},
 	}
 }

@@ -243,6 +243,8 @@ func (h *Handler) handleToolsCall(params json.RawMessage) (interface{}, error) {
 		return h.executeSubmitTestMetadata(callParams.Arguments)
 	case "suggest-missing-tests":
 		return h.executeSuggestMissingTests(callParams.Arguments)
+	case "get-function-metadata":
+		return h.executeGetFunctionMetadata(callParams.Arguments)
 	default:
 		return nil, fmt.Errorf("unknown tool: %s", callParams.Name)
 	}
@@ -312,6 +314,61 @@ func (h *Handler) executeSubmitTestMetadata(args map[string]interface{}) (interf
 				Text: fmt.Sprintf("Successfully stored test metadata for %s (%d tests)", sourceFile, len(tests)),
 			},
 		},
+	}, nil
+}
+
+// executeGetFunctionMetadata executes the get-function-metadata tool
+func (h *Handler) executeGetFunctionMetadata(args map[string]interface{}) (interface{}, error) {
+	sourceFile, ok := args["sourceFile"].(string)
+	if !ok || strings.TrimSpace(sourceFile) == "" {
+		return nil, fmt.Errorf("sourceFile is required and must be a string")
+	}
+	functionName, ok := args["functionName"].(string)
+	if !ok || strings.TrimSpace(functionName) == "" {
+		return nil, fmt.Errorf("functionName is required and must be a string")
+	}
+
+	canonicalFile, err := h.canonicalizePath(sourceFile)
+	if err != nil {
+		return nil, err
+	}
+
+	fileMeta := h.metaStore.GetTestMetadata(canonicalFile)
+
+	type result struct {
+		SourceFile   string                   `json:"sourceFile"`
+		FunctionName string                   `json:"functionName"`
+		Tests        []metadata.TestReference `json:"tests"`
+		Suggestions  []metadata.TestSuggestion `json:"suggestions"`
+	}
+
+	res := result{
+		SourceFile:   canonicalFile,
+		FunctionName: functionName,
+		Tests:        []metadata.TestReference{},
+		Suggestions:  []metadata.TestSuggestion{},
+	}
+
+	if fileMeta != nil {
+		for _, t := range fileMeta.Tests {
+			if t.FunctionName == functionName {
+				res.Tests = append(res.Tests, t)
+			}
+		}
+		for _, s := range fileMeta.Suggestions {
+			if s.FunctionName == functionName {
+				res.Suggestions = append(res.Suggestions, s)
+			}
+		}
+	}
+
+	data, err := json.Marshal(res)
+	if err != nil {
+		return nil, fmt.Errorf("failed to encode result: %w", err)
+	}
+
+	return ToolsCallResult{
+		Content: []ContentItem{{Type: "text", Text: string(data)}},
 	}, nil
 }
 

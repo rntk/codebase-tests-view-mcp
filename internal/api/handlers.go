@@ -128,8 +128,12 @@ func (h *Handler) GetTests(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Build detailed test information
+	functionName := r.URL.Query().Get("functionName")
 	var testDetails []files.TestDetail
 	for _, testRef := range fileMeta.Tests {
+		if functionName != "" && testRef.FunctionName != functionName {
+			continue
+		}
 		detail := files.TestDetail{
 			FunctionName: testRef.FunctionName,
 			TestFile:     testRef.TestFile,

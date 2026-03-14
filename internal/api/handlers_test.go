@@ -409,6 +409,97 @@ func TestSomething(t *testing.T) {
 			t.Error("expected empty content for missing test file")
 		}
 	})
+
+	t.Run("filters tests by functionName query param", func(t *testing.T) {
+		metaStore := metadata.NewStore("")
+		if err := metaStore.SetTestMetadata("test.go", []metadata.TestReference{
+			{
+				TestFile:     "test_test.go",
+				TestName:     "TestFoo",
+				FunctionName: "Foo",
+				Comment:      "Tests Foo",
+				LineRange:    metadata.LineRange{Start: 1, End: 5},
+				CoveredLines: metadata.LineRange{Start: 1, End: 3},
+			},
+			{
+				TestFile:     "test_test.go",
+				TestName:     "TestBar",
+				FunctionName: "Bar",
+				Comment:      "Tests Bar",
+				LineRange:    metadata.LineRange{Start: 6, End: 10},
+				CoveredLines: metadata.LineRange{Start: 4, End: 6},
+			},
+		}); err != nil {
+			t.Fatalf("set metadata: %v", err)
+		}
+
+		h := &Handler{
+			fileService: files.NewService(t.TempDir()),
+			metaStore:   metaStore,
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests?functionName=Foo", nil)
+		req.SetPathValue("path", "test.go")
+		rr := httptest.NewRecorder()
+
+		h.GetTests(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+
+		var response files.TestsResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if len(response.Tests) != 1 {
+			t.Fatalf("expected 1 test after filter, got %d", len(response.Tests))
+		}
+		if response.Tests[0].FunctionName != "Foo" {
+			t.Errorf("expected functionName %q, got %q", "Foo", response.Tests[0].FunctionName)
+		}
+	})
+
+	t.Run("returns empty tests when functionName filter matches nothing", func(t *testing.T) {
+		metaStore := metadata.NewStore("")
+		if err := metaStore.SetTestMetadata("test.go", []metadata.TestReference{
+			{
+				TestFile:     "test_test.go",
+				TestName:     "TestFoo",
+				FunctionName: "Foo",
+				Comment:      "Tests Foo",
+				LineRange:    metadata.LineRange{Start: 1, End: 5},
+				CoveredLines: metadata.LineRange{Start: 1, End: 3},
+			},
+		}); err != nil {
+			t.Fatalf("set metadata: %v", err)
+		}
+
+		h := &Handler{
+			fileService: files.NewService(t.TempDir()),
+			metaStore:   metaStore,
+		}
+
+		req := httptest.NewRequest(http.MethodGet, "/api/files/test.go/tests?functionName=NonExistent", nil)
+		req.SetPathValue("path", "test.go")
+		rr := httptest.NewRecorder()
+
+		h.GetTests(rr, req)
+
+		if rr.Code != http.StatusOK {
+			t.Fatalf("status = %d, want %d", rr.Code, http.StatusOK)
+		}
+
+		var response files.TestsResponse
+		if err := json.NewDecoder(rr.Body).Decode(&response); err != nil {
+			t.Fatalf("decode response: %v", err)
+		}
+
+		if len(response.Tests) != 0 {
+			t.Fatalf("expected 0 tests for non-matching filter, got %d", len(response.Tests))
+		}
+	})
 }
 
 func TestHandlerGetSuggestions(t *testing.T) {

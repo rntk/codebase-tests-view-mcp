@@ -8,8 +8,8 @@ import (
 func TestGetTools(t *testing.T) {
 	tools := GetTools()
 
-	if len(tools) != 2 {
-		t.Fatalf("expected 2 tools, got %d", len(tools))
+	if len(tools) != 3 {
+		t.Fatalf("expected 3 tools, got %d", len(tools))
 	}
 
 	// Check submit-test-metadata tool
@@ -98,6 +98,55 @@ func TestGetTools(t *testing.T) {
 
 	if _, ok := props2["suggestions"]; !ok {
 		t.Error("schema missing suggestions property")
+	}
+
+	// Check get-function-metadata tool
+	var getFuncTool Tool
+	for _, tool := range tools {
+		if tool.Name == "get-function-metadata" {
+			getFuncTool = tool
+			break
+		}
+	}
+	if getFuncTool.Name != "get-function-metadata" {
+		t.Errorf("expected third tool name %q, got %q", "get-function-metadata", getFuncTool.Name)
+	}
+	if getFuncTool.Description == "" {
+		t.Error("get-function-metadata description is empty")
+	}
+	var schema3 map[string]interface{}
+	if err := json.Unmarshal(getFuncTool.InputSchema, &schema3); err != nil {
+		t.Fatalf("failed to unmarshal get-function-metadata schema: %v", err)
+	}
+	props3, ok := schema3["properties"].(map[string]interface{})
+	if !ok {
+		t.Fatal("get-function-metadata schema properties is not a map")
+	}
+	if _, ok := props3["sourceFile"]; !ok {
+		t.Error("get-function-metadata schema missing sourceFile property")
+	}
+	if _, ok := props3["functionName"]; !ok {
+		t.Error("get-function-metadata schema missing functionName property")
+	}
+	required3, ok := schema3["required"].([]interface{})
+	if !ok {
+		t.Fatal("get-function-metadata schema required is not an array")
+	}
+	foundFuncName := false
+	foundSrcFile := false
+	for _, req := range required3 {
+		if req == "functionName" {
+			foundFuncName = true
+		}
+		if req == "sourceFile" {
+			foundSrcFile = true
+		}
+	}
+	if !foundFuncName {
+		t.Error("functionName not in get-function-metadata required fields")
+	}
+	if !foundSrcFile {
+		t.Error("sourceFile not in get-function-metadata required fields")
 	}
 
 	// Check that functionName is optional (not in required)
