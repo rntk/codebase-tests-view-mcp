@@ -215,6 +215,12 @@ function App() {
 
   // Handle search result selection
   const handleSearchResultSelect = useCallback((result: SearchResult) => {
+    // Extract directory path from the file path
+    const lastSlashIndex = result.path.lastIndexOf('/');
+    const dirPath = lastSlashIndex > 0 ? result.path.substring(0, lastSlashIndex) : '.';
+
+    // Update current path to show the directory containing the file
+    setCurrentPath(dirPath);
     setSelectedFilePath(result.path);
     setSelectedLine(result.line > 0 ? result.line : null);
     setHighlightedTestIds(new Set());
