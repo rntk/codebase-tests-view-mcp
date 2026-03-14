@@ -6,6 +6,7 @@ import { TestPanel } from './components/TestPanel/TestPanel';
 import { CommentPanel } from './components/CommentPanel';
 import { ExportModal } from './components/ExportModal';
 import { GlobalSearchPalette } from './components/GlobalSearchPalette';
+import { FloatingSearchButton } from './components/FloatingSearchButton';
 import { useFiles } from './hooks/useFiles';
 import { useFileContent } from './hooks/useFileContent';
 import { useTests } from './hooks/useTests';
@@ -369,6 +370,8 @@ function App() {
         onClose={() => setIsSearchPaletteOpen(false)}
         onResultSelect={handleSearchResultSelect}
       />
+
+      <FloatingSearchButton onClick={() => setIsSearchPaletteOpen(true)} />
     </>
   );
 }

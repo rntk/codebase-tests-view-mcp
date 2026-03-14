@@ -1748,3 +1748,46 @@ a {
   font-size: 11px;
   color: var(--text-tertiary);
 }
+
+/* ===========================
+   FLOATING SEARCH BUTTON
+   =========================== */
+
+.floating-search-button {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background-color: var(--accent-primary);
+  color: white;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.2s ease;
+  z-index: 1000;
+}
+
+.floating-search-button:hover {
+  background-color: var(--accent-hover);
+  transform: scale(1.05);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+}
+
+.floating-search-button:active {
+  transform: scale(0.98);
+}
+
+.floating-search-button:focus {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.4);
+}
+
+.floating-search-button svg {
+  width: 20px;
+  height: 20px;
+}
